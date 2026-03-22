@@ -1,0 +1,25 @@
+offworld:
+  server-url: http://localhost:3000
+  player-id: "alpha-team"
+  api-key: "alpha-secret-key-001"
+  # URL publique de CE client pour recevoir les webhooks du serveur
+  webhook-url: "http://localhost:8081/webhooks"
+  # Intervalle de polling pour les ships (ms)
+  ship-polling-interval-ms: 4000
+  # Intervalle de la boucle de stratégie (ms)
+  strategy-interval-ms: 20000
+
+spring:
+  application:
+    name: offworld-bot-client
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      fail-on-unknown-properties: false
+
+server:
+  port: 8081
+
+logging:
+  level:
+    com.offworld: INFO

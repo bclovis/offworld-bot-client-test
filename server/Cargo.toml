@@ -1,0 +1,34 @@
+[package]
+name = "offworld-trading-manager"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+rand = "0.8"
+uuid = { version = "1", features = ["v4", "serde"] }
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+toml = "0.8"
+pulsar = { version = "6", default-features = false, features = ["tokio-runtime", "compression"] }
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+biscuit-auth = "5"
+rust-s3 = { version = "0.35", default-features = false, features = ["tokio-rustls-tls"] }
+rmp-serde = "1"
+validator = { version = "0.18", features = ["derive"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["pulsar"] }

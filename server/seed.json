@@ -1,0 +1,231 @@
+{
+  "systems": {
+    "Sol": {
+      "name": "Sol",
+      "coordinates": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "star_type": "yellow_dwarf",
+      "planets": [
+        {
+          "id": "Sol-1",
+          "name": "Mercury",
+          "position": 1,
+          "distance_ua": 0.39,
+          "planet_type": {
+            "category": "telluric",
+            "climate": "desert"
+          },
+          "status": "uninhabited"
+        },
+        {
+          "id": "Sol-2",
+          "name": "Venus",
+          "position": 2,
+          "distance_ua": 0.72,
+          "planet_type": {
+            "category": "telluric",
+            "climate": "volcanic"
+          },
+          "status": "uninhabited"
+        },
+        {
+          "id": "Sol-3",
+          "name": "Earth",
+          "position": 3,
+          "distance_ua": 1.0,
+          "planet_type": {
+            "category": "telluric",
+            "climate": "temperate"
+          },
+          "status": "connected",
+          "settlement": {
+            "name": "New Geneva",
+            "economy": {
+              "credits": 0,
+              "tax_rate": 0.0
+            }
+          },
+          "station": {
+            "name": "Geneva Orbital",
+            "owner_id": "alpha-team",
+            "inventory": {
+              "iron_ore": 5000,
+              "copper_ore": 3000,
+              "food": 2000,
+              "water": 5000,
+              "silicon": 1000
+            },
+            "mass_driver": {
+              "max_channels": 4
+            }
+          },
+          "space_elevator": {
+            "warehouse": {
+              "owner_id": "alpha-team",
+              "inventory": {
+                "iron_ore": 1000,
+                "copper_ore": 500,
+                "food": 2000,
+                "water": 5000
+              }
+            },
+            "config": {
+              "cabin_count": 3,
+              "cabin_capacity": 1000,
+              "transfer_duration_secs": 5,
+              "failure_rate": 0.1,
+              "repair_duration_secs": 30
+            }
+          }
+        },
+        {
+          "id": "Sol-4",
+          "name": "Mars",
+          "position": 4,
+          "distance_ua": 1.52,
+          "planet_type": {
+            "category": "telluric",
+            "climate": "arid"
+          },
+          "status": "settled",
+          "settlement": {
+            "name": "Olympus City",
+            "economy": {
+              "credits": 0,
+              "tax_rate": 0.0
+            }
+          }
+        },
+        {
+          "id": "Sol-5",
+          "name": "Jupiter",
+          "position": 5,
+          "distance_ua": 5.2,
+          "planet_type": {
+            "category": "gas_giant",
+            "gas_type": "jovian"
+          },
+          "status": "uninhabited"
+        },
+        {
+          "id": "Sol-6",
+          "name": "Saturn",
+          "position": 6,
+          "distance_ua": 9.58,
+          "planet_type": {
+            "category": "gas_giant",
+            "gas_type": "saturnian"
+          },
+          "status": "uninhabited"
+        }
+      ]
+    },
+    "Proxima Centauri": {
+      "name": "Proxima Centauri",
+      "coordinates": {
+        "x": 4.24,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "star_type": "red_dwarf",
+      "planets": [
+        {
+          "id": "Proxima Centauri-1",
+          "name": "Proxima b",
+          "position": 1,
+          "distance_ua": 0.05,
+          "planet_type": {
+            "category": "telluric",
+            "climate": "arctic"
+          },
+          "status": "connected",
+          "settlement": {
+            "name": "Frost Haven",
+            "economy": {
+              "credits": 0,
+              "tax_rate": 0.0
+            }
+          },
+          "station": {
+            "name": "Frost Orbital",
+            "owner_id": "beta-corp",
+            "inventory": {
+              "iron_ore": 2000,
+              "copper_ore": 1000,
+              "rare_metals": 500,
+              "food": 500,
+              "water": 1000
+            },
+            "mass_driver": {
+              "max_channels": 2
+            }
+          },
+          "space_elevator": {
+            "warehouse": {
+              "owner_id": "beta-corp",
+              "inventory": {
+                "iron_ore": 500,
+                "rare_metals": 200
+              }
+            },
+            "config": {
+              "cabin_count": 1,
+              "cabin_capacity": 500,
+              "transfer_duration_secs": 3,
+              "failure_rate": 0.2,
+              "repair_duration_secs": 20
+            }
+          }
+        }
+      ]
+    },
+    "Sirius": {
+      "name": "Sirius",
+      "coordinates": {
+        "x": 8.6,
+        "y": 2.0,
+        "z": -1.0
+      },
+      "star_type": "binary_system",
+      "planets": [
+        {
+          "id": "Sirius-1",
+          "name": "Sirius Prime",
+          "position": 1,
+          "distance_ua": 2.5,
+          "planet_type": {
+            "category": "gas_giant",
+            "gas_type": "hot_jupiter"
+          },
+          "status": "uninhabited"
+        }
+      ]
+    }
+  },
+  "players": [
+    {
+      "id": "alpha-team",
+      "name": "Alpha Trading Co.",
+      "credits": 100000,
+      "api_key": "alpha-secret-key-001",
+      "callback_url": "http://localhost:8081/webhook"
+    },
+    {
+      "id": "beta-corp",
+      "name": "Beta Corporation",
+      "credits": 75000,
+      "api_key": "beta-secret-key-002",
+      "callback_url": "http://localhost:8082/webhook"
+    },
+    {
+      "id": "gamma-guild",
+      "name": "Gamma Traders Guild",
+      "credits": 50000,
+      "api_key": "gamma-secret-key-003",
+      "callback_url": "http://localhost:8083/webhook"
+    }
+  ]
+}

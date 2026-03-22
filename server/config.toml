@@ -1,0 +1,73 @@
+# Offworld Trading Manager Configuration
+
+# Server port (default: 3000, can also be set via PORT env var or --port CLI flag)
+port = 3000
+
+# Path to seed data file (can also be set via --seed CLI flag)
+# seed = "seed.json"
+
+# Pulsar configuration for mass driver streaming
+[pulsar]
+url = "pulsar://localhost:6650"
+tenant = "public"
+namespace = "default"
+
+# Mass driver defaults
+[mass_driver]
+# Max concurrent active connections per station
+default_channels = 4
+# Maximum units per packet
+max_packet_size = 20
+# Latency multiplier: seconds per AU of distance between planets
+au_to_seconds = 2.0
+
+# Ship configuration
+[ship]
+# Transit time multiplier: seconds per AU of distance
+au_to_seconds = 2.0
+# Loading/unloading time: seconds per unit of cargo
+seconds_per_unit = 0.1
+# Webhook request timeout in seconds
+webhook_timeout_secs = 5
+
+# Admin configuration
+[admin]
+# Admin bearer token (can also be set via ADMIN_TOKEN env var)
+token = "admin-secret-token"
+
+# Trucking configuration
+[trucking]
+jump_range_ly = 5.0
+jump_time_secs = 3.0
+au_to_seconds = 2.0
+seconds_per_unit = 0.1
+base_fee = 100
+fee_per_unit = 1.0
+
+# Market configuration
+[market]
+# Broadcast channel capacity for SSE trade events
+trade_channel_capacity = 1024
+
+# Construction configuration
+[construction]
+station_install_fee = 5000
+settlement_found_fee = 10000
+upgrade_docking_bay_fee = 1000
+upgrade_mass_driver_fee = 1500
+upgrade_storage_fee = 500
+storage_increment = 500
+upgrade_cabin_fee = 2000
+build_base_secs = 30.0
+upgrade_build_secs = 10.0
+initial_docking_bays = 2
+initial_max_storage = 10000
+
+[construction.station_install_goods]
+steel = 100
+electronics = 50
+
+[construction.settlement_found_goods]
+steel = 200
+electronics = 100
+food = 50

@@ -1,0 +1,17 @@
+# Java / Maven
+backend/target/
+**/*.class
+**/*.jar
+**/*.war
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Rust
+server/target/
+
+# Misc
+.DS_Store
+*.log
