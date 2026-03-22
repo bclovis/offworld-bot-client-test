@@ -343,8 +343,10 @@ function App() {
             }
 
             try {
-              const trade = JSON.parse(dataLines.join("\n"));
-              setRecentTrades((prev) => [trade, ...prev].slice(0, 100));
+              const trade = normalizeTradeEvent(JSON.parse(dataLines.join("\n")));
+              setRecentTrades((prev) => [...prev, trade]
+                .sort((left, right) => right.receivedAtMs - left.receivedAtMs)
+                .slice(0, 100));
               animateTrade(trade);
               setSseOk(true);
             } catch {
@@ -540,8 +542,11 @@ function App() {
             <div className="panel-title">Trade Feed</div>
             <ul className="feed">
               {recentTrades.slice(0, 20).map((trade) => (
-                <li key={readField(trade, "id", "trade_id", "tradeId")}>
-                  {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
+                <li key={getTradeKey(trade)} className="feed-item">
+                  <span className="feed-time">{formatTradeTime(trade)}</span>
+                  <span className="feed-text">
+                    {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
+                  </span>
                 </li>
               ))}
               {recentTrades.length === 0 && <li>No trade events yet</li>}
@@ -731,6 +736,47 @@ function formatNumber(value) {
   }
 
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatTradeTime(trade) {
+  const value = readField(
+    trade,
+    "received_at",
+    "receivedAt",
+    "created_at",
+    "createdAt",
+    "executed_at",
+    "executedAt",
+    "timestamp"
+  );
+  const date = value ? new Date(value) : null;
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return "--:--:--";
+  }
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
+}
+
+function normalizeTradeEvent(trade) {
+  const receivedAtIso = new Date().toISOString();
+
+  return {
+    ...trade,
+    receivedAt: readField(trade, "received_at", "receivedAt", "created_at", "createdAt", "executed_at", "executedAt", "timestamp") ?? receivedAtIso,
+    receivedAtMs: Date.now()
+  };
+}
+
+function getTradeKey(trade) {
+  return String(
+    readField(trade, "id", "trade_id", "tradeId")
+      ?? `${readField(trade, "good_name", "goodName")}-${readField(trade, "buyer_id", "buyerId")}-${trade.receivedAtMs}`
+  );
 }
 
 function hash(input) {

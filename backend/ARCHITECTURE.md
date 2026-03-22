@@ -1,135 +1,97 @@
 # Architecture — Offworld Bot Client
 
-## Librairie réactive choisie : Project Reactor
+## Objectif
 
-Intégrée nativement avec Spring WebFlux. Fournit `Mono` (0-1 élément) et `Flux` (0-N éléments), les opérateurs de composition (`flatMap`, `zip`, `when`), et les schedulers pour gérer les threads.
+Le bot Java pilote automatiquement une station Offworld en combinant quatre modes d'interaction :
 
----
+- requêtes HTTP non bloquantes
+- polling périodique
+- flux SSE du marché
+- webhooks entrants
 
-## Structure du projet
+## Librairie choisie
 
-```
-OffworldApplication       ← point d'entrée, orchestre le démarrage
-├── config/               ← AppConfig (YAML), WebClientConfig (WebClient partagé)
-├── AppState              ← état partagé thread-safe (ConcurrentHashMap)
-├── client/               ← couche HTTP (un client par domaine API)
-│   ├── GalaxyClient      ← GET /systems, /planets
-│   ├── PlayerClient      ← GET/PUT /players
-│   ├── StationClient     ← GET /station, POST /space-elevator/transfer
-│   ├── MarketClient      ← GET/POST /market/orders, SSE /market/trades
-│   ├── ShipClient        ← GET /ships, POST /trucking, /dock, /undock
-│   ├── TradeClient       ← POST/GET /trade
-│   └── ConstructionClient← GET /construction
-├── service/              ← logique métier réactive
-│   ├── GalaxyService     ← scan galaxie + init au démarrage
-│   ├── MarketService     ← stream SSE + cache de prix
-│   ├── ShipService       ← lifecycle ships (webhooks + polling)
-│   └── TradingStrategy   ← boucle de trading automatique
-└── webhook/
-    └── WebhookController ← POST /webhooks (endpoint exposé au serveur)
-```
+**Project Reactor** via **Spring WebFlux**.
 
----
+Cette pile permet d'utiliser `Mono` et `Flux` sur toute la chaîne, avec le même modèle pour appeler l'API, planifier les boucles, traiter le SSE et exposer le serveur webhook.
 
-## Les 5 patterns d'interaction
+## Vue d'ensemble
 
-### 1. Synchronous request/response
-Tous les `GET` simples (liste des systèmes, prix du marché, inventaire station) :
-```java
-webClient.get().uri("/systems").retrieve().bodyToFlux(StarSystem.class)
-```
-Non-bloquant : le thread est libéré pendant l'attente réseau.
+```mermaid
+flowchart TD
+    Server[Serveur Offworld]
+    Clients[Clients WebClient]
+    Services[Services métier]
+    State[AppState]
+    Webhook[WebhookController]
 
-### 2. Blocking HTTP call — Space Elevator
-Le serveur tient la connexion ouverte plusieurs secondes. On utilise `subscribeOn(Schedulers.boundedElastic())` pour déléguer sur un thread dédié aux I/O bloquantes sans jamais bloquer l'event-loop :
-```java
-webClient.post().uri("/space-elevator/transfer")
-    .bodyValue(body)
-    .retrieve().bodyToMono(ElevatorTransferResult.class)
-    .timeout(Duration.ofSeconds(60))
-    .subscribeOn(Schedulers.boundedElastic())  // ← clé du pattern
+    Server -->|REST + SSE| Clients
+    Clients --> Services
+    Services --> State
+    Server -->|POST /webhooks| Webhook
+    Webhook --> Services
 ```
 
-### 3. Polling — Ship lifecycle
-`Flux.interval` génère un tick périodique. À chaque tick, on poll tous les ships actifs **en parallèle** avec `flatMap` :
-```java
-Flux.interval(Duration.ofMillis(4000))
-    .onBackpressureDrop()
-    .flatMap(tick -> Flux.fromIterable(activeShips).flatMap(shipClient::getShip))
-    .retry()
+## Flux principal
+
+```mermaid
+sequenceDiagram
+    participant App as OffworldApplication
+    participant Galaxy as GalaxyService
+    participant Market as MarketService
+    participant Ships as ShipService
+    participant Strategy as TradingStrategy
+    participant Server as Serveur
+
+    App->>Galaxy: init()
+    Galaxy->>Server: GET /systems, PUT /players/{id}/webhook
+    App->>Market: initPrices()
+    Market->>Server: GET /market/prices
+    App->>Market: streamTrades()
+    Market->>Server: GET /market/trades (SSE)
+    App->>Ships: startPolling()
+    App->>Strategy: startInterval()
+    Server-->>App: POST /webhooks
 ```
 
-### 4. Server-Sent Events — Market stream
-`GET /market/trades` retourne un flux SSE infini. On consomme chaque event pour mettre à jour le cache de prix :
-```java
-marketClient.streamTrades()          // Flux<TradeEvent> infini
-    .doOnNext(e -> state.updatePrice(e.goodName(), e.price()))
-    // + retryWhen et onBackpressureBuffer(500) côté MarketClient
-```
+## Intégration des patterns réactifs
 
-### 5. Webhooks — Server push
-On expose `POST /webhooks`. Le serveur nous envoie les events ship (docking, livraison) et construction. On répond `200 OK` immédiatement et on traite en asynchrone (fire-and-forget) pour ne pas dépasser le timeout du serveur :
-```java
-@PostMapping
-public Mono<ResponseEntity<String>> handleWebhook(@RequestBody Map<String, Object> payload) {
-    shipService.handleWebhookEvent(event).subscribe(); // async
-    return Mono.just(ResponseEntity.ok("ok"));         // réponse immédiate
-}
-```
+### 1. Sync non bloquant
 
----
+Les appels REST classiques utilisent `WebClient` et retournent des `Mono` ou `Flux`.
 
-## Flux de données global
+Usage : initialisation, lecture des prix, lecture des inventaires, placement d'ordres.
 
-```
-Démarrage (séquentiel)
-  GalaxyService.initialize()
-    → GET /players/{id}          (profil + crédits)
-    → PUT /players/{id}          (enregistre callback_url)
-    → GET /systems + /planets    (scan parallèle de toute la galaxie)
-    → trouve notre station → stocke dans AppState
-  MarketService.initPrices()
-    → GET /market/prices         (cache de prix initial)
-  ShipService.syncActiveShips()
-    → GET /ships                 (ships déjà en vol au redémarrage)
-  ElevatorService.initExportDemands()
-    → POST /trade                (crée les demandes d'import/export initiales)
-  ElevatorService.checkAndTransferToOrbit()
-    → POST /space-elevator/transfer  (premier transfert bloquant au démarrage)
+### 2. Polling
 
-Runtime (4 boucles parallèles)
-  ┌─ SSE Stream ──────────────────────────────────────────────────┐
-  │  MarketClient.streamTrades() → state.updatePrice()            │
-  │  Pattern #4 : retryWhen + onBackpressureBuffer(500)           │
-  └───────────────────────────────────────────────────────────────┘
-  ┌─ Polling Ships (toutes les 4s) ───────────────────────────────┐
-  │  ShipClient.getShip(id) × N ships → state.updateShip()       │
-  │  Pattern #3 : Flux.interval + flatMap parallèle               │
-  └───────────────────────────────────────────────────────────────┘
-  ┌─ Trading Strategy (toutes les 20s) ───────────────────────────┐
-  │  Mono.zip(getInventory, getOpenOrders)                        │
-  │    → sellGoodsWeHave() + cancelOldOrders() [parallèle]       │
-  │  Pattern #1 : REST sync non-bloquant                          │
-  └───────────────────────────────────────────────────────────────┘
-  ┌─ Space Elevator check (toutes les 60s) ───────────────────────┐
-  │  ElevatorService.checkAndTransferToOrbit()                    │
-  │    → POST /space-elevator/transfer (connexion tenue ~5s)      │
-  │  Pattern #2 : subscribeOn(Schedulers.boundedElastic())        │
-  └───────────────────────────────────────────────────────────────┘
-  ┌─ Webhook Server (HTTP entrant) ───────────────────────────────┐
-  │  POST /webhooks → dispatch → ShipService.handleWebhookEvent() │
-  │  Pattern #5 : réponse immédiate + traitement async            │
-  └───────────────────────────────────────────────────────────────┘
-```
+Les boucles périodiques utilisent `Flux.interval()`.
 
----
+Usage :
 
-## Gestion des erreurs et résilience
+- polling des vaisseaux toutes les quelques secondes
+- boucle de stratégie à intervalle fixe
 
-| Situation | Mécanisme |
-|---|---|
-| Serveur injoignable au démarrage | `onErrorResume` → continue sans planter |
-| Erreur réseau dans le polling | `.retry()` → relance automatiquement |
-| Erreur dans un tick de stratégie | `onErrorResume` → on skip le tick, la boucle continue |
-| SSE déconnecté | `retryWhen(Retry.backoff(...))` dans MarketClient |
-| Appel trop long | `.timeout(Duration.ofSeconds(N))` sur chaque client |
+### 3. SSE
+
+Le flux `GET /market/trades` est consommé comme un `Flux` infini.
+
+Usage : mise à jour continue du cache de prix et adaptation de la stratégie.
+
+### 4. Webhooks
+
+Le backend expose `POST /webhooks` et traite les événements en asynchrone.
+
+Usage : arrivées, docking, undocking et autres transitions du cycle de vie des vaisseaux.
+
+### 5. Appel bloquant isolé
+
+Le transfert par ascenseur spatial est isolé sur `Schedulers.boundedElastic()` pour éviter de bloquer les threads réactifs.
+
+## Résumé
+
+L'architecture repose sur une idée simple :
+
+- `WebClient` pour parler au serveur
+- des services Reactor pour orchestrer les actions
+- `AppState` pour partager l'état courant
+- SSE, polling et webhooks pour garder le bot synchronisé avec le jeu

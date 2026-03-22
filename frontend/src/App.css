@@ -360,6 +360,22 @@ button:disabled {
   font-family: var(--font-data);
 }
 
+.feed-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.feed-time {
+  flex: 0 0 auto;
+  min-width: 72px;
+  color: var(--amber);
+}
+
+.feed-text {
+  flex: 1 1 auto;
+}
+
 .prices-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
