@@ -38,9 +38,9 @@ public class ShipClient {
     }
 
     /**
-     * PATTERN POLLING : get d'un ship qui met aussi à jour le statut côté serveur.
-     * Si le timer de loading/unloading est expiré, le serveur passe automatiquement
-     * le ship à l'état awaiting_*_auth dans la réponse.
+     * POLLING PATTERN: get a ship which also updates the status on the server side.
+     * If the loading/unloading timer has expired, the server automatically
+     * moves the ship to the awaiting_*_auth state in the response.
      */
     public Mono<Ship> getShip(String shipId) {
         return webClient.get()

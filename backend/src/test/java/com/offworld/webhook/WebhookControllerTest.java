@@ -43,7 +43,7 @@ class WebhookControllerTest {
         webhookController = new WebhookController(shipService, new ObjectMapper());
     }
 
-    // Helper pour créer un payload Map<String, Object> facilement
+    // Helper to create Map<String, Object> payload easily
     private Map<String, Object> payload(Object... keysAndValues) {
         Map<String, Object> map = new HashMap<>();
         for (int i = 0; i < keysAndValues.length; i += 2) {
@@ -57,7 +57,7 @@ class WebhookControllerTest {
     // ─────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("origin_docking_request → dispatché vers ShipService.handleWebhookEvent")
+    @DisplayName("origin_docking_request → dispatched to ShipService.handleWebhookEvent")
     void webhook_originDockingRequest_dispatched() {
         when(shipService.handleWebhookEvent(any())).thenReturn(Mono.<Void>empty());
 
@@ -78,7 +78,7 @@ class WebhookControllerTest {
     }
 
     @Test
-    @DisplayName("docking_request → dispatché vers ShipService")
+    @DisplayName("docking_request → dispatched to ShipService")
     void webhook_dockingRequest_dispatched() {
         when(shipService.handleWebhookEvent(any())).thenReturn(Mono.<Void>empty());
 
@@ -97,7 +97,7 @@ class WebhookControllerTest {
     }
 
     @Test
-    @DisplayName("ship_docked → dispatché vers ShipService")
+    @DisplayName("ship_docked → dispatched to ShipService")
     void webhook_shipDocked_dispatched() {
         when(shipService.handleWebhookEvent(any())).thenReturn(Mono.<Void>empty());
 
@@ -111,7 +111,7 @@ class WebhookControllerTest {
     }
 
     @Test
-    @DisplayName("ship_complete → dispatché vers ShipService")
+    @DisplayName("ship_complete → dispatched to ShipService")
     void webhook_shipComplete_dispatched() {
         when(shipService.handleWebhookEvent(any())).thenReturn(Mono.<Void>empty());
 
@@ -129,7 +129,7 @@ class WebhookControllerTest {
     // ─────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("construction_complete → 200, ShipService NON appelé")
+    @DisplayName("construction_complete → 200, ShipService NOT called")
     void webhook_constructionComplete_returns200() {
         var p = payload("type", "construction_complete", "project_id", "proj-001", "planet_id", "p5");
 
@@ -140,7 +140,7 @@ class WebhookControllerTest {
     }
 
     @Test
-    @DisplayName("type inconnu → 200 (résilience : on ne crashe jamais)")
+    @DisplayName("unknown type → 200 (resilience: never crash)")
     void webhook_unknownType_returns200() {
         var p = payload("type", "some_future_event", "data", "foo");
 
@@ -162,9 +162,9 @@ class WebhookControllerTest {
     }
 
     @Test
-    @DisplayName("fire-and-forget : répond < 500ms même si ShipService prend 1 seconde")
+    @DisplayName("fire-and-forget: responds < 500ms even if ShipService takes 1 second")
     void webhook_fireAndForget_respondsImmediately() {
-        // ShipService lent (1s), mais controller répond via .subscribe() sans attendre
+        // Slow ShipService (1s), but controller responds via .subscribe() without waiting
         Mono<Void> slowMono = Mono.<Void>empty().delaySubscription(java.time.Duration.ofSeconds(1));
         when(shipService.handleWebhookEvent(any())).thenReturn(slowMono);
 

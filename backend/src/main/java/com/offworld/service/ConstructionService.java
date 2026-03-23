@@ -15,13 +15,13 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * Gère le cycle de vie des projets de construction :
- * - Sync au démarrage
- * - Polling périodique pour détecter les completions
- * - Réaction aux webhooks construction_complete
+ * Manages construction project lifecycle:
+ * - Sync at startup
+ * - Periodic polling to detect completions
+ * - Webhook reactions on construction_complete
  *
- * PATTERN RÉACTIF : Flux.interval pour le polling + flatMap non-bloquant.
- * Quand un projet est terminé → re-scan galaxie pour intégrer la nouvelle infra.
+ * REACTIVE PATTERN: Flux.interval for polling + non-blocking flatMap.
+ * When a project is complete → re-scan galaxy to integrate new infrastructure.
  */
 @Service
 public class ConstructionService {
@@ -29,8 +29,8 @@ public class ConstructionService {
     private static final Logger log = LoggerFactory.getLogger(ConstructionService.class);
 
     /**
-     * On ne lance un upgrade que si on a au moins ce montant de crédits en réserve.
-     * Évite de dépenser tout l'argent avant le trading.
+     * We only launch an upgrade if we have at least this amount of credits in reserve.
+     * Avoids spending all money before trading.
      */
     private static final long MIN_CREDITS_TO_BUILD = 5_000L;
 
@@ -47,8 +47,8 @@ public class ConstructionService {
     }
 
     /**
-     * Sync des projets actifs dans AppState au démarrage.
-     * Si aucun projet actif, tente immédiatement un premier upgrade.
+     * Sync active projects into AppState at startup.
+     * If no active project, immediately attempts first upgrade.
      */
     public Mono<Void> syncProjects() {
         return constructionClient.getMyProjects()
@@ -56,7 +56,7 @@ public class ConstructionService {
                 .collectList()
                 .flatMap(projects -> {
                     state.putConstructionProjects(projects);
-                    log.info("[CONSTRUCTION] {} projet(s) actif(s) au démarrage", projects.size());
+                    log.info("[CONSTRUCTION] {} project(s) active at startup", projects.size());
                     if (projects.isEmpty()) {
                         return tryTriggerUpgrade();
                     }
@@ -65,9 +65,9 @@ public class ConstructionService {
     }
 
     /**
-     * Boucle de polling périodique.
-     * Compare l'état précédent : si un projet passe à 'complete', déclenche un re-scan galaxie.
-     * Si plus aucun projet actif et assez de crédits, tente un upgrade automatique.
+     * Periodic polling loop.
+     * Compare previous state: if a project moves to 'complete', triggers galaxy re-scan.
+     * If no more active projects and enough credits, attempts automatic upgrade.
      *
      * PATTERN : Flux.interval + flatMap non-bloquant + onErrorResume par tick.
      */
@@ -78,7 +78,7 @@ public class ConstructionService {
                         constructionClient.getMyProjects()
                                 .collectList()
                                 .flatMap(latestProjects -> {
-                                    // IDs connus avant la mise à jour
+                                    // Known IDs before update
                                     List<String> knownIds = state.getConstructionProjectsList()
                                             .stream()
                                             .map(ConstructionProject::id)
@@ -88,14 +88,14 @@ public class ConstructionService {
                                             .filter(p -> !p.isDone())
                                             .toList();
 
-                                    // Met à jour le cache avec les projets encore actifs
+                                    // Update cache with still-active projects
                                     state.putConstructionProjects(active);
 
                                     boolean newlyCompleted = latestProjects.stream()
                                             .anyMatch(p -> p.isDone() && knownIds.contains(p.id()));
 
                                     if (newlyCompleted) {
-                                        log.info("[CONSTRUCTION] Projet complété détecté (polling) — re-scan galaxie");
+                                        log.info("[CONSTRUCTION] Project completed detected (polling) — galaxy re-scan");
                                         return galaxyService.scanGalaxy();
                                     }
 
@@ -115,9 +115,9 @@ public class ConstructionService {
 
     /**
      * Tente de lancer un upgrade sur notre station.
-     * Ordre de priorité : docking_bays → storage → elevator.
-     * Chaque appel est fire-and-forget : si le serveur répond 4xx (pas assez de
-     * goods/crédits, upgrade déjà max…), on passe silencieusement au suivant.
+     * Priority order: docking_bays → storage → elevator.
+     * Each call is fire-and-forget: if server responds 4xx (not enough
+     * goods/credits, max upgrade already...), silently move to next.
      */
     public Mono<Void> tryTriggerUpgrade() {
         String planetId = state.getMyPlanetId();
@@ -125,21 +125,21 @@ public class ConstructionService {
             return Mono.empty();
         }
         if (state.getCredits() < MIN_CREDITS_TO_BUILD) {
-            log.debug("[CONSTRUCTION] Pas assez de crédits pour builder ({} < {})",
+            log.debug("[CONSTRUCTION] Not enough credits to build ({} < {})",
                     state.getCredits(), MIN_CREDITS_TO_BUILD);
             return Mono.empty();
         }
 
         return constructionClient.upgradeDockingBays(planetId)
-                .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade docking_bays lancé → projet {}", p.id()))
+                .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade docking_bays started → project {}", p.id()))
                 .onErrorResume(WebClientResponseException.class, e -> {
-                    log.info("[CONSTRUCTION] docking_bays refusé ({}), essai storage…", e.getStatusCode());
+                    log.info("[CONSTRUCTION] docking_bays rejected ({}), trying storage...", e.getStatusCode());
                     return constructionClient.upgradeStorage(planetId)
-                            .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade storage lancé → projet {}", p.id()))
+                            .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade storage started → project {}", p.id()))
                             .onErrorResume(WebClientResponseException.class, e2 -> {
-                                log.info("[CONSTRUCTION] storage refusé ({}), essai elevator…", e2.getStatusCode());
+                                log.info("[CONSTRUCTION] storage rejected ({}), trying elevator...", e2.getStatusCode());
                                 return constructionClient.upgradeElevator(planetId)
-                                        .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade elevator lancé → projet {}", p.id()))
+                                        .doOnNext(p -> log.info("[CONSTRUCTION] Upgrade elevator started → project {}", p.id()))
                                         .onErrorResume(WebClientResponseException.class, e3 -> {
                                             log.info("[CONSTRUCTION] Aucun upgrade disponible pour l'instant ({})", e3.getStatusCode());
                                             return Mono.empty();
@@ -157,14 +157,14 @@ public class ConstructionService {
     }
 
     /**
-     * Appelé par le WebhookController quand l'événement construction_complete arrive.
-     * Retire le projet du cache et déclenche immédiatement un re-scan galaxie.
+     * Called by WebhookController when construction_complete event arrives.
+     * Removes project from cache and immediately triggers galaxy re-scan.
      *
-     * PATTERN : Webhook-driven reaction (plus réactif que le polling seul).
+     * PATTERN: Webhook-driven reaction (more reactive than polling alone).
      */
     public Mono<Void> onConstructionComplete(ConstructionWebhookEvent event) {
         if (event instanceof ConstructionWebhookEvent.ConstructionComplete e) {
-            log.info("[CONSTRUCTION] Webhook: projet {} ({}) terminé sur planète {}",
+            log.info("[CONSTRUCTION] Webhook: project {} ({}) completed on planet {}",
                     e.projectId(), e.projectType(), e.targetPlanetId());
             state.removeConstructionProject(e.projectId());
         }

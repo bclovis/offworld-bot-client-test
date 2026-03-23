@@ -13,16 +13,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/** Gère l'ascenseur spatial et les demandes d'export. */
+/** Manages space elevator and export requests. */
 @Service
 public class ElevatorService {
 
     private static final Logger log = LoggerFactory.getLogger(ElevatorService.class);
 
-    // Goods pour lesquels on crée des demandes d'export au démarrage
+    // Goods for which we create export requests at startup
     private static final List<String> EXPORT_GOODS = List.of("food", "water", "iron_ore", "copper_ore");
-    private static final long EXPORT_RATE_PER_TICK = 10L;   // unités/tick
-    private static final long EXPORT_TOTAL_QTY    = 500L;   // total à générer
+    private static final long EXPORT_RATE_PER_TICK = 10L;   // units/tick
+    private static final long EXPORT_TOTAL_QTY    = 500L;   // total to generate
 
     private final StationClient stationClient;
     private final TradeClient   tradeClient;
@@ -36,11 +36,11 @@ public class ElevatorService {
 
     public Mono<Void> initExportDemands() {
         if (state.getMyPlanetId() == null) {
-            log.warn("[TRADE] Station non initialisée, skip export demands");
+            log.warn("[TRADE] Station not initialized, skip export demands");
             return Mono.empty();
         }
 
-        // Récupère les trade requests actives pour éviter les doublons
+        // Fetches active trade requests to avoid duplicates
         return tradeClient.getMyTradeRequests()
                 .filter(r -> "active".equals(r.status()))
                 .map(TradeRequest::goodName)
@@ -62,11 +62,11 @@ public class ElevatorService {
                         creates.add(
                                 tradeClient.createTradeRequest(req)
                                         .doOnNext(r -> log.info(
-                                                "[TRADE] Export demand créée : {} → {}u/tick × {} ticks = {}u total",
+                                                "[TRADE] Export demand created: {} → {}u/tick × {} ticks = {}u total",
                                                 r.goodName(), r.ratePerTick(),
                                                 r.totalQuantity() / r.ratePerTick(), r.totalQuantity()))
                                         .onErrorResume(e -> {
-                                            log.debug("[TRADE] Export demand déjà active pour {} (skip)", good);
+                                            log.debug("[TRADE] Export demand already active for {} (skip)", good);
                                             return Mono.empty();
                                         })
                                         .then()
@@ -90,12 +90,12 @@ public class ElevatorService {
                     if (warehouse == null
                             || warehouse.inventory() == null
                             || warehouse.inventory().isEmpty()) {
-                        log.debug("[ELEVATOR] Entrepôt surface vide — rien à monter");
+                        log.debug("[ELEVATOR] Surface warehouse empty — nothing to transfer");
                         return Mono.empty();
                     }
 
                     if (!elevator.hasAvailableCabin()) {
-                        log.info("[ELEVATOR] Aucune cabine libre ({} cabines) — transfert différé",
+                        log.info("[ELEVATOR] No free cabins ({} cabins) — transfer deferred",
                                 elevator.config().cabinCount());
                         return Mono.empty();
                     }
@@ -126,10 +126,10 @@ public class ElevatorService {
                                     items)
                             .doOnSuccess(result -> {
                                 if (result.success()) {
-                                    log.info("[ELEVATOR] ✓ Transfert OK — cabin={} durée={}s total={}u en orbite",
+                                    log.info("[ELEVATOR] ✓ Transfer OK — cabin={} duration={}s total={}u in orbit",
                                             result.cabinId(), result.durationSecs(), result.totalQuantity());
                                 } else {
-                                    log.warn("[ELEVATOR] ✗ Transfert échoué : {}", result.failureReason());
+                                    log.warn("[ELEVATOR] ✗ Transfer failed: {}", result.failureReason());
                                 }
                             })
                             .then();

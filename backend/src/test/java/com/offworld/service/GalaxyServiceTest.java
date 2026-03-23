@@ -56,7 +56,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("scanGalaxy — découvre et stocke les planètes connectées")
+    @DisplayName("scanGalaxy — discovers and stores connected planets")
     void scanGalaxy_storeConnectedPlanets() {
         var system = new StarSystem("Sol", new StarSystem.Coordinates(0, 0, 0), "G", List.of());
         var connectedStatus   = new Planet.PlanetStatus("connected", null, null, null);
@@ -78,7 +78,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("scanGalaxy — détecte notre station quand ownerId correspond")
+    @DisplayName("scanGalaxy — detects our station when ownerId matches")
     void scanGalaxy_detectsOurStation() {
         var system = new StarSystem("Sol", new StarSystem.Coordinates(0, 0, 0), "G", List.of());
         var connectedStatus = new Planet.PlanetStatus("connected", null, null, null);
@@ -98,7 +98,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("scanGalaxy — continue si une planète est inaccessible (onErrorResume)")
+    @DisplayName("scanGalaxy — continues if planet inaccessible (onErrorResume)")
     void scanGalaxy_continuesOnPlanetError() {
         var system = new StarSystem("Sol", new StarSystem.Coordinates(0, 0, 0), "G", List.of());
         var connectedStatus = new Planet.PlanetStatus("connected", null, null, null);
@@ -120,7 +120,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("scanGalaxy — scanne plusieurs systèmes (flatMap parallèle)")
+    @DisplayName("scanGalaxy — scans multiple systems (parallel flatMap)")
     void scanGalaxy_parallelSystemScan() {
         var sys1 = new StarSystem("Sol", new StarSystem.Coordinates(0, 0, 0), "G", List.of());
         var sys2 = new StarSystem("Alpha Centauri", new StarSystem.Coordinates(4, 2, 1), "K", List.of());
@@ -165,7 +165,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("getMyStationInventory — erreur si station non initialisée")
+    @DisplayName("getMyStationInventory — error if station not initialized")
     void getMyStationInventory_errorWhenNotInitialized() {
         when(state.getMyPlanetId()).thenReturn(null);
         when(state.getMySystemName()).thenReturn(null);
@@ -176,7 +176,7 @@ class GalaxyServiceTest {
     }
 
     @Test
-    @DisplayName("getMyStationInventory — retourne l'inventaire si initialisé")
+    @DisplayName("getMyStationInventory — returns inventory if initialized")
     void getMyStationInventory_returnsInventory() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(state.getMySystemName()).thenReturn("Sol");

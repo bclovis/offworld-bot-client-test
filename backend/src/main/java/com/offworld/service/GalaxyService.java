@@ -16,8 +16,8 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 
 /**
- * Service d'exploration de la galaxie.
- * Découvre les systèmes, planètes et identifie notre station au démarrage.
+ * Galaxy exploration service.
+ * Discovers systems, planets and identifies our station at startup.
  */
 @Service
 public class GalaxyService {
@@ -43,15 +43,15 @@ public class GalaxyService {
         return playerClient.getMyProfile(config.playerId())
                 .doOnNext(p -> {
                     state.setCredits(p.credits());
-                    log.info("Joueur: {} | Crédits: {}", p.name(), p.credits());
+                    log.info("Player: {} | Credits: {}", p.name(), p.credits());
                 })
                 .then(playerClient.registerWebhookUrl(config.playerId(), config.webhookUrl()))
-                .doOnNext(p -> log.info("Webhook URL enregistrée: {}", p.callbackUrl()))
+                .doOnNext(p -> log.info("Webhook URL registered: {}", p.callbackUrl()))
                 .then(scanGalaxy());
     }
 
     public Mono<Void> scanGalaxy() {
-        log.info("Scan de la galaxie...");
+        log.info("Scanning galaxy...");
         return galaxyClient.getAllSystems()
                 .flatMap(system ->
                         galaxyClient.getPlanets(system.name())
@@ -66,24 +66,24 @@ public class GalaxyService {
                                                     && config.playerId().equals(planet.station().ownerId())) {
                                                 state.setMyPlanetId(planet.id());
                                                 state.setMySystemName(system.name());
-                                                log.info("Notre station trouvée sur: {} ({})", planet.name(), planet.id());
+                                                log.info("Our station found on: {} ({})", planet.name(), planet.id());
                                             }
                                         })
                                         .onErrorResume(e -> {
-                                            log.warn("Impossible de détailler la planète {}: {}", p.id(), e.getMessage());
+                                            log.warn("Cannot detail planet {}: {}", p.id(), e.getMessage());
                                             return Mono.empty();
                                         })
                                 )
                 )
                 .then()
-                .doOnSuccess(v -> log.info("Galaxie scannée: {} planètes trouvées, station: {}",
+                .doOnSuccess(v -> log.info("Galaxy scanned: {} planets found, station: {}",
                         state.getConnectedPlanets().size(), state.getMyPlanetId()));
     }
 
     // Retourne l'inventaire actuel de notre station
     public Mono<StationInfo> getMyStationInventory() {
         if (state.getMyPlanetId() == null || state.getMySystemName() == null) {
-            return Mono.error(new IllegalStateException("Station non initialisée"));
+            return Mono.error(new IllegalStateException("Station not initialized"));
         }
         return stationClient.getMyStation(state.getMySystemName(), state.getMyPlanetId());
     }

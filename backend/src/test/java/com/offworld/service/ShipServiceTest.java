@@ -48,7 +48,7 @@ class ShipServiceTest {
    
 
     @Test
-    @DisplayName("webhook OriginDockingRequest — autorise le docking et met à jour l'état")
+    @DisplayName("webhook OriginDockingRequest — authorizes docking and updates state")
     void handleWebhook_originDockingRequest_docksAndUpdates() {
         var event = new ShipWebhookEvent.OriginDockingRequest(
                 "ship-001", "p1", "p2", Map.of("food", 100L));
@@ -63,7 +63,7 @@ class ShipServiceTest {
     }
 
     @Test
-    @DisplayName("webhook DockingRequest — autorise le docking à destination")
+    @DisplayName("webhook DockingRequest — authorizes docking at destination")
     void handleWebhook_dockingRequest_docksAtDestination() {
         var event = new ShipWebhookEvent.DockingRequest(
                 "ship-002", "p1", Map.of("water", 50L));
@@ -78,7 +78,7 @@ class ShipServiceTest {
     }
 
     @Test
-    @DisplayName("webhook ShipDocked — aucun appel réseau (polling prend le relai)")
+    @DisplayName("webhook ShipDocked — no network call (polling takes over)")
     void handleWebhook_shipDocked_noExtraNetworkCall() {
         var event = new ShipWebhookEvent.ShipDocked("ship-003", Ship.LOADING);
 
@@ -86,11 +86,11 @@ class ShipServiceTest {
                 .verifyComplete();
 
         verifyNoInteractions(shipClient);
-        // state.then() est appelé par doOnSuccess même avec flux vide — comportement normal
+        // state.then() is called by doOnSuccess even with empty flux — normal behavior
     }
 
     @Test
-    @DisplayName("webhook ShipComplete — retire le ship de l'état actif")
+    @DisplayName("webhook ShipComplete — removes ship from active state")
     void handleWebhook_shipComplete_removesFromState() {
         var event = new ShipWebhookEvent.ShipComplete("ship-004");
 
@@ -102,7 +102,7 @@ class ShipServiceTest {
     }
 
     @Test
-    @DisplayName("webhook — dock retourne empty (onErrorResume interne), complète sans crash")
+    @DisplayName("webhook — dock returns empty (internal onErrorResume), completes without crash")
     void handleWebhook_dockFails_completesGracefully() {
         var event = new ShipWebhookEvent.OriginDockingRequest(
                 "ship-005", "p1", "p2", Map.of());
@@ -115,7 +115,7 @@ class ShipServiceTest {
  
 
     @Test
-    @DisplayName("startPolling — poll les ships actifs à chaque tick")
+    @DisplayName("startPolling — polls active ships on each tick")
     void startPolling_pollsActiveShips() {
         var ships = new ConcurrentHashMap<String, Ship>();
         ships.put("s1", buildShip("s1", Ship.IN_TRANSIT));
@@ -149,14 +149,14 @@ class ShipServiceTest {
     }
 
     @Test
-    @DisplayName("startPolling — continue après erreur réseau (retry)")
+    @DisplayName("startPolling — continues after network error (retry)")
     void startPolling_retriesAfterNetworkError() {
         var ships = new ConcurrentHashMap<String, Ship>();
         ships.put("s1", buildShip("s1", Ship.IN_TRANSIT));
 
         when(state.getActiveShips()).thenReturn(ships);
         when(state.getShip("s1")).thenReturn(null);
-        // 1er appel échoue, 2ème réussit
+        // 1st call fails, 2nd succeeds
         when(shipClient.getShip("s1"))
                 .thenReturn(Mono.error(new RuntimeException("timeout")))
                 .thenReturn(Mono.just(buildShip("s1", Ship.IN_TRANSIT)));
@@ -169,7 +169,7 @@ class ShipServiceTest {
     }
 
     @Test
-    @DisplayName("startPolling — déclenche undock si ship attend à l'origine")
+    @DisplayName("startPolling — triggers undock if ship waiting at origin")
     void startPolling_triggersOriginUndock() throws InterruptedException {
         var ships = new ConcurrentHashMap<String, Ship>();
         var readyShip = buildShip("s1", Ship.AWAITING_ORIGIN_UNDOCKING_AUTH);
@@ -187,7 +187,7 @@ class ShipServiceTest {
         .expectNextCount(1)
         .verifyComplete();
 
-        Thread.sleep(100); // laisse le .subscribe() interne s'exécuter
+        Thread.sleep(100); // let internal .subscribe() execute
         verify(shipClient).undock("s1");
     }
 

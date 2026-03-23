@@ -1,41 +1,41 @@
 # Offworld Bot Client Test
 
-Projet Offworld complet avec trois briques :
+Complete Offworld project with three components:
 
-- `server/` : serveur de jeu Rust
-- `backend/` : bot Java réactif
-- `frontend/` : dashboard React
+- `server/` : Rust game server
+- `backend/` : reactive Java bot
+- `frontend/` : React dashboard
 
-## Vue rapide
+## Quick overview
 
 ```mermaid
 flowchart LR
-    S[Serveur Rust<br/>API REST + SSE + webhooks] --> B[Backend Java<br/>bot automatique]
-    S --> F[Frontend React<br/>dashboard]
+    S[Rust Server<br/>REST API + SSE + webhooks] --> B[Java Backend<br/>automated bot]
+    S --> F[React Frontend<br/>dashboard]
     B --> S
     F --> S
 ```
 
 ## Stack
 
-- serveur : Rust, Axum, Tokio
-- backend : Java 21, Spring Boot WebFlux, Project Reactor, Maven
-- frontend : React, Vite
+- server: Rust, Axum, Tokio
+- backend: Java 21, Spring Boot WebFlux, Project Reactor, Maven
+- frontend: React, Vite
 
-## Démarrage
+## Getting Started
 
-### 1. Lancer le serveur
+### 1. Start the server
 
 ```bash
 cd server
 cargo run -- --seed seed.json
 ```
 
-Serveur par défaut : `http://localhost:3000`
+Server default: `http://localhost:3000`
 
-### 2. Configurer le backend
+### 2. Configure the backend
 
-Dans `backend/src/main/resources/application.yml` :
+In `backend/src/main/resources/application.yml` :
 
 ```yaml
 offworld:
@@ -48,14 +48,14 @@ server:
   port: 8081
 ```
 
-### 3. Lancer le backend
+### 3. Start the backend
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-### 4. Lancer le frontend
+### 4. Start the frontend
 
 ```bash
 cd frontend
@@ -63,9 +63,9 @@ npm install
 npm run dev
 ```
 
-Frontend par défaut : `http://localhost:5173`
+Frontend default: `http://localhost:5173`
 
-## Build et tests
+## Build and tests
 
 ```bash
 cd server && cargo test
@@ -73,9 +73,9 @@ cd backend && mvn test
 cd frontend && npm run build && npm run lint
 ```
 
-## Où lire quoi
+## What to read where
 
-- `backend/README.md` : build, configuration, exécution, choix de la librairie réactive
-- `backend/ARCHITECTURE.md` : architecture réactive courte avec diagrammes
-- `frontend/README.md` : lancement et fonctionnement du dashboard
-- `server/docs/` : documentation API détaillée
+- `backend/README.md` : build, configuration, execution, reactive library choice
+- `backend/ARCHITECTURE.md` : short reactive architecture with diagrams
+- `frontend/README.md` : dashboard startup and functionality
+- `server/docs/` : detailed API documentation

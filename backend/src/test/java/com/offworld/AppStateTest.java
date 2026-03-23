@@ -51,7 +51,7 @@ class AppStateTest {
     }
 
     @Test
-    @DisplayName("updatePrice — écrase l'ancienne valeur (dernier SSE gagne)")
+    @DisplayName("updatePrice — overwrites old value (last SSE wins)")
     void priceCache_overwritesOldValue() {
         appState.updatePrice("food", 5L);
         appState.updatePrice("food", 7L); // nouveau prix SSE
@@ -97,7 +97,7 @@ class AppStateTest {
     @DisplayName("updateShip — remplace le ship existant")
     void shipTracking_updatesExisting() {
         var ship1 = buildShip("s1", Ship.IN_TRANSIT);
-        var ship2 = buildShip("s1", Ship.LOADING); // même id, nouveau statut
+        var ship2 = buildShip("s1", Ship.LOADING); // same id, new status
 
         appState.trackShip(ship1);
         appState.updateShip(ship2);
@@ -106,7 +106,7 @@ class AppStateTest {
     }
 
     @Test
-    @DisplayName("removeShip — retire le ship de l'état actif")
+    @DisplayName("removeShip — removes ship from active state")
     void shipTracking_removesShip() {
         appState.trackShip(buildShip("s1", Ship.IN_TRANSIT));
         appState.trackShip(buildShip("s2", Ship.LOADING));
@@ -144,7 +144,7 @@ class AppStateTest {
     }
 
     // -------------------------------------------------------------------------
-    // Planètes
+    // Planets
     // -------------------------------------------------------------------------
 
     @Test
@@ -164,7 +164,7 @@ class AppStateTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("setCredits/getCredits — met à jour les crédits")
+    @DisplayName("setCredits/getCredits — updates credits")
     void credits_storesAndReturns() {
         assertThat(appState.getCredits()).isEqualTo(0L);
 
@@ -177,7 +177,7 @@ class AppStateTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("updatePrice — thread-safe sous accès concurrent")
+    @DisplayName("updatePrice — thread-safe under concurrent access")
     void priceCache_isConcurrentlySafe() throws InterruptedException {
         int threadCount = 50;
         var latch = new CountDownLatch(threadCount);
@@ -203,7 +203,7 @@ class AppStateTest {
     }
 
     @Test
-    @DisplayName("trackShip/removeShip — thread-safe sous accès concurrent")
+    @DisplayName("trackShip/removeShip — thread-safe under concurrent access")
     void shipTracking_isConcurrentlySafe() throws InterruptedException {
         int threadCount = 50;
         var latch = new CountDownLatch(threadCount);

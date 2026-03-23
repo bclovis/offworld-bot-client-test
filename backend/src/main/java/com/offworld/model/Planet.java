@@ -18,10 +18,10 @@ public record Planet(
         int position,
         double distanceUa,
         PlanetType planetType,
-        // Le serveur renvoie soit une string ("uninhabited") soit un objet JSON
+        // The server returns either a string ("uninhabited") or a JSON object
         @JsonDeserialize(using = PlanetStatusDeserializer.class)
         PlanetStatus status,
-        // Champs directs sur la planète (endpoint détail uniquement)
+        // Direct fields on the planet (detail endpoint only)
         Settlement settlement,
         StationInfo station,
         SpaceElevatorInfo spaceElevator
@@ -41,17 +41,17 @@ public record Planet(
         }
     }
 
-    // Désérialiseur custom : gère le cas où status est une String ou un objet
+    // Custom deserializer: handles the case where status is a String or an object
     public static class PlanetStatusDeserializer extends StdDeserializer<PlanetStatus> {
         public PlanetStatusDeserializer() { super(PlanetStatus.class); }
 
         @Override
         public PlanetStatus deserialize(JsonParser p, DeserializationContext ctx) throws IOException {
             if (p.currentToken() == JsonToken.VALUE_STRING) {
-                // Ex: "uninhabited" → on crée un PlanetStatus avec juste le nom du statut
+                // Ex: "uninhabited" → we create a PlanetStatus with just the status name
                 return new PlanetStatus(p.getText(), null, null, null);
             }
-            // C'est un objet JSON, on le parse manuellement pour éviter la récursion infinie
+            // It's a JSON object, we parse it manually to avoid infinite recursion
             ObjectMapper mapper = (ObjectMapper) p.getCodec();
             ObjectNode node = mapper.readTree(p);
             String status = node.has("status") ? node.get("status").asText() : null;

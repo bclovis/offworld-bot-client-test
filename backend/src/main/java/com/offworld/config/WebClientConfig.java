@@ -7,8 +7,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 public class WebClientConfig {
 
-    // On injecte le WebClient.Builder auto-configuré par Spring Boot pour bénéficier
-    // du naming strategy SNAKE_CASE défini dans application.yml
+    // We inject the auto-configured WebClient.Builder from Spring Boot to benefit from
+    // the SNAKE_CASE naming strategy defined in application.yml
     @Bean
     public WebClient webClient(WebClient.Builder builder, AppConfig config) {
         return builder

@@ -13,13 +13,13 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Gère l'abonnement au stream SSE du marché. */
+/** Manages subscription to market SSE stream. */
 @Service
 public class MarketService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketService.class);
 
-    // Compteur de trades reçus via SSE — pour rendre le flux visible dans les logs
+    // Trade counter received via SSE — to make the stream visible in logs
     private final AtomicLong sseTradeCount = new AtomicLong(0);
 
     private final MarketClient marketClient;
@@ -36,7 +36,7 @@ public class MarketService {
                     state.updatePrice(event.goodName(), event.price());
 
                     long n = sseTradeCount.incrementAndGet();
-                    log.info("[SSE #{}/{}] Trade marché : {}× {} @ {} crédits | acheteur={} vendeur={}",
+                    log.info("[SSE #{}/{}] Market trade: {}× {} @ {} credits | buyer={} seller={}",
                             n, formatCount(n),
                             event.quantity(), event.goodName(), event.price(),
                             abbrev(event.buyerId()), abbrev(event.sellerId()));
@@ -45,13 +45,13 @@ public class MarketService {
 
     /**
      * Initialise les prix en faisant un appel REST initial avant de brancher le SSE.
-     * Ainsi on a des données dès le démarrage.
+     * This way we have data from startup.
      */
     public Mono<Void> initPrices() {
         return marketClient.getAllPrices()
                 .doOnNext(prices -> {
                     prices.forEach(state::updatePrice);
-                    log.info("Prix initiaux chargés: {} goods", prices.size());
+                    log.info("Initial prices loaded: {} goods", prices.size());
                 })
                 .then();
     }
@@ -62,19 +62,19 @@ public class MarketService {
                 .concatWith(marketClient.getMyOrders("partially_filled"))
                 .flatMap(order -> marketClient.cancelOrder(order.id()))
                 .then()
-                .doOnSuccess(v -> log.info("Ordres ouverts annulés"));
+                .doOnSuccess(v -> log.info("Open orders canceled"));
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    /** Abrège un player id pour les logs : "alpha-team" → "alpha" */
+    /** Abbreviate player id for logs: "alpha-team" → "alpha" */
     private static String abbrev(String id) {
         if (id == null) return "?";
         int idx = id.indexOf('-');
         return idx > 0 ? id.substring(0, idx) : id;
     }
 
-    /** Affiche le rang du trade de façon lisible ("1er", "10e", etc.) */
+    /** Display trade rank in readable format ("1st", "10th", etc.) */
     private static String formatCount(long n) {
         return n == 1 ? "1er" : n + "e";
     }

@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.Map;
 
-// Le serveur Rust utilise #[serde(tag = "type", rename_all = "snake_case")]
-// donc on reçoit: {"type": "origin_docking_request", ...}
+// The Rust server uses #[serde(tag = "type", rename_all = "snake_case")]
+// so we receive: {"type": "origin_docking_request", ...}
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ShipWebhookEvent.OriginDockingRequest.class, name = "origin_docking_request"),
