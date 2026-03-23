@@ -207,6 +207,37 @@ button:disabled {
 .profile-card p {
   margin: 0;
   font-size: 18px;
+  transition: color 0.3s;
+}
+
+.profile-card p.credit-up {
+  color: #4ddb8a;
+  animation: credit-flash-up 2.5s ease forwards;
+}
+
+.profile-card p.credit-down {
+  color: #ff6b6b;
+  animation: credit-flash-down 2.5s ease forwards;
+}
+
+.credit-delta {
+  margin-left: 6px;
+  font-size: 13px;
+  font-family: var(--font-data);
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+@keyframes credit-flash-up {
+  0% { color: #4ddb8a; }
+  70% { color: #4ddb8a; }
+  100% { color: inherit; }
+}
+
+@keyframes credit-flash-down {
+  0% { color: #ff6b6b; }
+  70% { color: #ff6b6b; }
+  100% { color: inherit; }
 }
 
 .checks {
@@ -415,9 +446,9 @@ button:disabled {
 }
 
 .hud-tabs {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -429,19 +460,19 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 6px;
+  justify-content: center;
+  gap: 4px;
   border: none;
   border-radius: 0;
   background: transparent;
   color: #b9d5e3;
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.1;
   letter-spacing: 0.5px;
-  padding: 2px 0 0;
-  min-height: 110px;
-  width: 100%;
+  padding: 6px 2px;
+  min-height: unset;
+  flex: 1;
   aspect-ratio: auto;
   overflow: visible;
   box-shadow: none;
@@ -451,9 +482,9 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  max-width: 86px;
-  aspect-ratio: 1 / 1;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
   border: 1px solid rgba(109, 215, 255, 0.55);
   border-radius: 6px;
   background: rgba(7, 18, 31, 0.45);
@@ -461,10 +492,8 @@ button:disabled {
 }
 
 .hud-tab-icon {
-  width: 78%;
-  max-width: 58px;
-  aspect-ratio: 1 / 1;
-  height: auto;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
   image-rendering: pixelated;
 }
@@ -473,8 +502,8 @@ button:disabled {
   display: block;
   width: 100%;
   text-align: center;
-  font-size: 12px;
-  letter-spacing: 0.6px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
@@ -836,6 +865,107 @@ button:disabled {
   border-radius: 999px;
 }
 
+/* ── Construction panel ──────────────────────────────────────── */
+.construction-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.construction-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(122, 203, 230, 0.15);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.construction-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.construction-badge {
+  font-size: 10px;
+  font-family: var(--font-data);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.construction-badge-in-transit {
+  background: rgba(255, 200, 60, 0.18);
+  color: #ffc83c;
+  border: 1px solid rgba(255, 200, 60, 0.35);
+}
+
+.construction-badge-building {
+  background: rgba(80, 180, 255, 0.18);
+  color: #50b4ff;
+  border: 1px solid rgba(80, 180, 255, 0.35);
+}
+
+.construction-type {
+  color: #d0e8f5;
+  font-size: 13px;
+}
+
+.construction-card-body {
+  font-size: 12px;
+  color: #8aabbf;
+}
+
+.construction-route {
+  font-family: var(--font-data);
+}
+
+.construction-progress-wrap {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.construction-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3a9fd8, #7acbe6);
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.construction-progress-label {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  font-size: 10px;
+  color: #7acbe6;
+  font-family: var(--font-data);
+}
+
+.construction-empty {
+  color: #8aabbf;
+  font-size: 13px;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.construction-hint {
+  font-size: 11px;
+  color: rgba(122, 203, 230, 0.4);
+}
+
 @keyframes hover {
   0%,
   100% {
@@ -876,7 +1006,7 @@ button:disabled {
   }
 
   .hud-tabs {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    flex-direction: row;
   }
 
   .inventory-source-grid {

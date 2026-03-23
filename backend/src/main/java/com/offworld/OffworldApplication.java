@@ -1,6 +1,7 @@
 package com.offworld;
 
 import com.offworld.config.AppConfig;
+import com.offworld.service.ConstructionService;
 import com.offworld.service.ElevatorService;
 import com.offworld.service.GalaxyService;
 import com.offworld.service.MarketService;
@@ -26,25 +27,28 @@ public class OffworldApplication implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(OffworldApplication.class);
 
-    private final GalaxyService    galaxyService;
-    private final MarketService    marketService;
-    private final ShipService      shipService;
-    private final TradingStrategy  tradingStrategy;
-    private final ElevatorService  elevatorService;
-    private final AppConfig        config;
+    private final GalaxyService       galaxyService;
+    private final MarketService       marketService;
+    private final ShipService         shipService;
+    private final TradingStrategy     tradingStrategy;
+    private final ElevatorService     elevatorService;
+    private final ConstructionService constructionService;
+    private final AppConfig           config;
 
 
     private final List<Disposable> subscriptions = new ArrayList<>();
 
     public OffworldApplication(GalaxyService galaxyService, MarketService marketService,
                                ShipService shipService, TradingStrategy tradingStrategy,
-                               ElevatorService elevatorService, AppConfig config) {
-        this.galaxyService   = galaxyService;
-        this.marketService   = marketService;
-        this.shipService     = shipService;
-        this.tradingStrategy = tradingStrategy;
-        this.elevatorService = elevatorService;
-        this.config          = config;
+                               ElevatorService elevatorService, ConstructionService constructionService,
+                               AppConfig config) {
+        this.galaxyService       = galaxyService;
+        this.marketService       = marketService;
+        this.shipService         = shipService;
+        this.tradingStrategy     = tradingStrategy;
+        this.elevatorService     = elevatorService;
+        this.constructionService = constructionService;
+        this.config              = config;
     }
 
     public static void main(String[] args) {
@@ -62,6 +66,7 @@ public class OffworldApplication implements CommandLineRunner {
                 .then(shipService.syncActiveShips())
                 .then(Mono.defer(() -> elevatorService.initExportDemands()))
                 .then(Mono.defer(() -> elevatorService.checkAndTransferToOrbit()))
+                .then(Mono.defer(() -> constructionService.syncProjects()))
                 .onErrorResume(e -> {
                     log.warn("Init incomplète (serveur injoignable ?) : {}", e.getMessage());
                     return Mono.empty();
@@ -97,6 +102,15 @@ public class OffworldApplication implements CommandLineRunner {
                         )
         );
 
+        // [5] Polling construction toutes les 30s
+        subscriptions.add(
+                constructionService.startPolling(Duration.ofSeconds(30))
+                        .subscribe(
+                                v -> {},
+                                err -> log.error("[CONSTRUCTION] Boucle arrêtée : {}", err.getMessage())
+                        )
+        );
+
         // [2] Check ascenseur toutes les 60s
         subscriptions.add(
                 Flux.interval(Duration.ofSeconds(60))
@@ -112,7 +126,7 @@ public class OffworldApplication implements CommandLineRunner {
                         )
         );
 
-        log.info("[OK] Bot opérationnel — 4 boucles actives + webhook server sur port {}",
+        log.info("[OK] Bot opérationnel — 5 boucles actives + webhook server sur port {}",
                 config.webhookUrl());
     }
 }

@@ -1,10 +1,13 @@
 package com.offworld;
 
+import com.offworld.model.ConstructionProject;
 import com.offworld.model.OrderBook;
 import com.offworld.model.Planet;
 import com.offworld.model.Ship;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -32,6 +35,9 @@ public class AppState {
 
     // Planètes connectées qu'on a découvertes (planet_id -> planet)
     private final ConcurrentHashMap<String, Planet> connectedPlanets = new ConcurrentHashMap<>();
+
+    // Projets de construction actifs (project_id -> project)
+    private final ConcurrentHashMap<String, ConstructionProject> constructionProjects = new ConcurrentHashMap<>();
 
     // Nos crédits actuels (mis à jour périodiquement)
     private volatile long credits = 0;
@@ -84,4 +90,17 @@ public class AppState {
 
     public long getCredits() { return credits; }
     public void setCredits(long credits) { this.credits = credits; }
+
+    public void putConstructionProjects(List<ConstructionProject> projects) {
+        constructionProjects.clear();
+        projects.forEach(p -> constructionProjects.put(p.id(), p));
+    }
+
+    public void removeConstructionProject(String id) {
+        constructionProjects.remove(id);
+    }
+
+    public List<ConstructionProject> getConstructionProjectsList() {
+        return new ArrayList<>(constructionProjects.values());
+    }
 }

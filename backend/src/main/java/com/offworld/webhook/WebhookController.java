@@ -3,6 +3,7 @@ package com.offworld.webhook;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.offworld.model.webhook.ConstructionWebhookEvent;
 import com.offworld.model.webhook.ShipWebhookEvent;
+import com.offworld.service.ConstructionService;
 import com.offworld.service.ShipService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,10 +36,12 @@ public class WebhookController {
     );
 
     private final ShipService shipService;
+    private final ConstructionService constructionService;
     private final ObjectMapper objectMapper;
 
-    public WebhookController(ShipService shipService, ObjectMapper objectMapper) {
+    public WebhookController(ShipService shipService, ConstructionService constructionService, ObjectMapper objectMapper) {
         this.shipService = shipService;
+        this.constructionService = constructionService;
         this.objectMapper = objectMapper;
     }
 
@@ -67,8 +70,11 @@ public class WebhookController {
         } else if ("construction_complete".equals(type)) {
             try {
                 ConstructionWebhookEvent event = objectMapper.convertValue(rawPayload, ConstructionWebhookEvent.class);
-                log.info("Construction terminée: {}", event);
-                // TODO: déclencher un re-scan de la galaxie ou une action de suivi
+                constructionService.onConstructionComplete(event)
+                        .subscribe(
+                                v -> {},
+                                e -> log.error("Erreur traitement construction webhook: {}", e.getMessage())
+                        );
             } catch (Exception e) {
                 log.error("Impossible de parser construction webhook: {}", e.getMessage());
             }

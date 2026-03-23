@@ -48,6 +48,28 @@ public class ConstructionClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
+    // Augmenter la capacité de stockage de la station
+    public Mono<ConstructionProject> upgradeStorage(String planetId) {
+        log.info("Upgrade storage sur {}", planetId);
+        return webClient.post()
+                .uri("/construction/upgrade-station")
+                .bodyValue(Map.of("planet_id", planetId, "upgrade_type", "storage"))
+                .retrieve()
+                .bodyToMono(ConstructionProject.class)
+                .timeout(Duration.ofSeconds(10));
+    }
+
+    // Ajouter une cabine à l'ascenseur spatial
+    public Mono<ConstructionProject> upgradeElevator(String planetId) {
+        log.info("Upgrade elevator sur {}", planetId);
+        return webClient.post()
+                .uri("/construction/upgrade-elevator")
+                .bodyValue(Map.of("planet_id", planetId))
+                .retrieve()
+                .bodyToMono(ConstructionProject.class)
+                .timeout(Duration.ofSeconds(10));
+    }
+
     // Construire une nouvelle station sur une planète settlée
     public Mono<ConstructionProject> installStation(String sourcePlanetId, String targetPlanetId, String stationName) {
         log.info("Installation station sur {} depuis {}", targetPlanetId, sourcePlanetId);

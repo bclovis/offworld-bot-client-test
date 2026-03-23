@@ -14,6 +14,7 @@ const hudTabs = [
   { key: "orders", label: "Orders", icon: "/images/tab_orders.png" },
   { key: "market", label: "Market", icon: "/images/tab_market.png" },
   { key: "fleet", label: "Fleet", icon: "/images/tab_fleet.png" },
+  { key: "build", label: "Build", icon: "/images/station.png" },
   { key: "ranking", label: "Ranking", icon: "/images/tab_ranking.png" }
 ];
 
@@ -40,6 +41,9 @@ function App() {
   const [ships, setShips] = useState([]);
   const [tradeRequests, setTradeRequests] = useState([]);
   const [recentTrades, setRecentTrades] = useState([]);
+  const [constructionProjects, setConstructionProjects] = useState([]);
+  const [creditDelta, setCreditDelta] = useState(null);
+  const prevCreditsRef = useRef(null);
   const [syncOk, setSyncOk] = useState(false);
   const [pollingOk, setPollingOk] = useState(false);
   const [sseOk, setSseOk] = useState(false);
@@ -134,8 +138,9 @@ function App() {
           const stationInventory = station?.inventory || {};
           const warehouseInventory = elevator?.warehouse?.inventory || {};
           const hasInventory = Object.keys(stationInventory).length > 0 || Object.keys(warehouseInventory).length > 0;
+          const hasStorage = Boolean(station || elevator);
 
-          if (!hasInventory) {
+          if (!hasInventory && !hasStorage) {
             return null;
           }
 
@@ -143,6 +148,7 @@ function App() {
             systemName: system.name,
             planetId: planet.id,
             planetName: planet.name,
+            hasStorage,
             stationInventory,
             warehouseInventory
           };
@@ -192,10 +198,10 @@ function App() {
           id: entry.planetId,
           planetName: entry.planetName,
           systemName: entry.systemName,
+          hasStorage: entry.hasStorage,
           rows
         };
-      })
-      .filter((location) => location.rows.length > 0);
+      });
 
     const totalItems = [...totals.entries()]
       .map(([good, qty]) => ({ good, qty }))
@@ -214,11 +220,53 @@ function App() {
     return inventoryManifest.locations.find((location) => location.id === selectedPlanetId) || null;
   }, [inventoryManifest.locations, selectedPlanetId]);
 
-  const visibleInventoryLocations = useMemo(() => {
-    return selectedInventoryLocation ? [selectedInventoryLocation] : inventoryManifest.locations;
-  }, [inventoryManifest.locations, selectedInventoryLocation]);
+  const selectedPlanet = useMemo(() => {
+    if (!selectedPlanetId) {
+      return null;
+    }
 
-  const selectedPlanetName = selectedInventoryLocation?.planetName || "";
+    for (const system of systems) {
+      const planet = (system.planets || []).find((entry) => entry.id === selectedPlanetId);
+      if (planet) {
+        return {
+          id: planet.id,
+          name: planet.name,
+          systemName: system.name
+        };
+      }
+    }
+
+    return null;
+  }, [selectedPlanetId, systems]);
+
+  const visibleInventoryLocations = useMemo(() => {
+    if (!selectedPlanetId) {
+      return inventoryManifest.locations;
+    }
+
+    return selectedInventoryLocation ? [selectedInventoryLocation] : [];
+  }, [inventoryManifest.locations, selectedInventoryLocation, selectedPlanetId]);
+
+  const visibleInventorySummary = useMemo(() => {
+    const totals = new Map();
+
+    for (const location of visibleInventoryLocations) {
+      for (const row of location.rows) {
+        totals.set(row.good, (totals.get(row.good) || 0) + row.totalQty);
+      }
+    }
+
+    const totalItems = [...totals.entries()]
+      .map(([good, qty]) => ({ good, qty }))
+      .sort((left, right) => right.qty - left.qty);
+
+    return {
+      totalUnits: totalItems.reduce((acc, item) => acc + item.qty, 0),
+      totalItems
+    };
+  }, [visibleInventoryLocations]);
+
+  const selectedPlanetName = selectedInventoryLocation?.planetName || selectedPlanet?.name || "";
 
   function togglePlanetInventorySelection(planetId) {
     setSelectedPlanetId((prev) => (prev === planetId ? null : planetId));
@@ -395,6 +443,21 @@ function App() {
     setShips(shipsData);
     setTradeRequests(tradeData);
     setPollingOk(true);
+
+    // Track credit changes
+    const newCredits = profileData?.credits;
+    if (typeof newCredits === "number" && prevCreditsRef.current !== null && newCredits !== prevCreditsRef.current) {
+      const diff = newCredits - prevCreditsRef.current;
+      setCreditDelta(diff);
+      setTimeout(() => setCreditDelta(null), 2500);
+    }
+    if (typeof newCredits === "number") prevCreditsRef.current = newCredits;
+
+    // Optional: fetch construction projects from Java bot backend (port 8081)
+    fetch("/bot/construction")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setConstructionProjects(Array.isArray(data) ? data : []))
+      .catch(() => {});
   }
 
   async function requestJson(runtimeConfig, path) {
@@ -477,7 +540,12 @@ function App() {
             <img src="/images/npc.png" alt="npc" />
             <div>
               <p>{profile?.name || "Unknown Pilot"}</p>
-              <p>Credits: {formatNumber(profile?.credits)}</p>
+              <p className={creditDelta !== null ? (creditDelta >= 0 ? "credit-up" : "credit-down") : ""}>
+                Credits: {formatNumber(profile?.credits)}
+                {creditDelta !== null && (
+                  <span className="credit-delta">{creditDelta > 0 ? `+${formatNumber(creditDelta)}` : formatNumber(creditDelta)}</span>
+                )}
+              </p>
               <p>Profit: {formatNumber(myProfit)}</p>
             </div>
           </div>
@@ -577,26 +645,26 @@ function App() {
               <section className="side-section inventory-section">
                 <div className="inventory-header">
                   <h2>Inventory Manifest</h2>
-                  <span>{inventoryManifest.locations.length} hubs | {formatNumber(inventoryManifest.totalUnits)} units</span>
+                  <span>{visibleInventoryLocations.length} hubs | {formatNumber(visibleInventorySummary.totalUnits)} units</span>
                 </div>
 
                 <div className="inventory-controls">
                   <span>
-                    {selectedInventoryLocation
+                    {selectedPlanetId
                       ? `Selected: ${selectedPlanetName} (click it again on map to clear)`
                       : "Selected: all planets (click a planet on map to focus)"}
                   </span>
                 </div>
 
                 <div className="inventory-totals">
-                  {inventoryManifest.totalItems.slice(0, 10).map((item) => (
+                  {visibleInventorySummary.totalItems.slice(0, 10).map((item) => (
                     <div className="inventory-total-pill" key={`total-${item.good}`}>
                       <img src={getGoodIcon(item.good)} alt={item.good} />
                       <span>{item.good}</span>
                       <strong>{formatNumber(item.qty)}</strong>
                     </div>
                   ))}
-                  {inventoryManifest.totalItems.length === 0 && (
+                  {visibleInventorySummary.totalItems.length === 0 && (
                     <div className="inventory-empty">No station inventory found</div>
                   )}
                 </div>
@@ -609,24 +677,28 @@ function App() {
                         <span>{location.systemName}</span>
                       </div>
 
-                      <div className="inventory-table-wrap">
-                        <div className="inventory-table">
-                          <div className="inventory-table-head">Good</div>
-                          <div className="inventory-table-head">Station</div>
-                          <div className="inventory-table-head">Warehouse</div>
-                          <div className="inventory-table-head">Total</div>
+                      {location.rows.length > 0 ? (
+                        <div className="inventory-table-wrap">
+                          <div className="inventory-table">
+                            <div className="inventory-table-head">Good</div>
+                            <div className="inventory-table-head">Station</div>
+                            <div className="inventory-table-head">Warehouse</div>
+                            <div className="inventory-table-head">Total</div>
 
-                          {location.rows.flatMap((row) => ([
-                            <div className="inventory-good-cell" key={`${location.id}-${row.good}-good`}>
-                              <img src={getGoodIcon(row.good)} alt={row.good} />
-                              <span>{row.good}</span>
-                            </div>,
-                            <div className="inventory-value-cell" key={`${location.id}-${row.good}-station`}>{formatNumber(row.stationQty)}</div>,
-                            <div className="inventory-value-cell" key={`${location.id}-${row.good}-warehouse`}>{formatNumber(row.warehouseQty)}</div>,
-                            <div className="inventory-value-cell total" key={`${location.id}-${row.good}-total`}>{formatNumber(row.totalQty)}</div>
-                          ]))}
+                            {location.rows.flatMap((row) => ([
+                              <div className="inventory-good-cell" key={`${location.id}-${row.good}-good`}>
+                                <img src={getGoodIcon(row.good)} alt={row.good} />
+                                <span>{row.good}</span>
+                              </div>,
+                              <div className="inventory-value-cell" key={`${location.id}-${row.good}-station`}>{formatNumber(row.stationQty)}</div>,
+                              <div className="inventory-value-cell" key={`${location.id}-${row.good}-warehouse`}>{formatNumber(row.warehouseQty)}</div>,
+                              <div className="inventory-value-cell total" key={`${location.id}-${row.good}-total`}>{formatNumber(row.totalQty)}</div>
+                            ]))}
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="inventory-empty">No goods stored on this planet.</div>
+                      )}
                     </article>
                   ))}
                   {selectedPlanetId && !selectedInventoryLocation && (
@@ -709,6 +781,55 @@ function App() {
                     {tradeRequests.length === 0 && <li>No active trade requests</li>}
                   </ul>
                 </div>
+              </section>
+            )}
+
+            {activeHudView === "build" && (
+              <section className="side-section">
+                <h2>Construction Projects</h2>
+                {constructionProjects.length === 0 ? (
+                  <div className="construction-empty">
+                    <p>No active construction projects.</p>
+                    <p className="construction-hint">
+                      Bot backend must be running on port 8081 to show data here.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="construction-list">
+                    {constructionProjects.map((proj) => {
+                      const id = readField(proj, "id", "project_id", "projectId");
+                      const type = readField(proj, "project_type", "projectType") ?? "unknown";
+                      const status = readField(proj, "status") ?? "unknown";
+                      const target = readField(proj, "target_planet_id", "targetPlanetId") ?? "?";
+                      const source = readField(proj, "source_planet_id", "sourcePlanetId");
+                      const createdAt = readField(proj, "created_at", "createdAt");
+                      const completionAt = readField(proj, "completion_at", "completionAt");
+                      const progress = getProjectProgress(createdAt, completionAt);
+                      return (
+                        <li key={id} className="construction-card">
+                          <div className="construction-card-header">
+                            <span className={`construction-badge construction-badge-${status.replace(/_/g, "-")}`}>
+                              {status.replace(/_/g, " ")}
+                            </span>
+                            <strong className="construction-type">
+                              {formatProjectType(type)}
+                            </strong>
+                          </div>
+                          <div className="construction-card-body">
+                            {source && <span className="construction-route">{source} → {target}</span>}
+                            {!source && <span className="construction-route">{target}</span>}
+                          </div>
+                          {progress !== null && (
+                            <div className="construction-progress-wrap">
+                              <div className="construction-progress-bar" style={{ width: `${progress}%` }} />
+                              <span className="construction-progress-label">{progress}%</span>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </section>
             )}
 
@@ -804,6 +925,23 @@ function readField(obj, ...keys) {
   }
 
   return undefined;
+}
+
+function getProjectProgress(createdAt, completionAt) {
+  if (!completionAt || !createdAt) return null;
+  const now = Date.now();
+  const progress = ((now - createdAt) / (completionAt - createdAt)) * 100;
+  return Math.min(100, Math.max(0, Math.round(progress)));
+}
+
+function formatProjectType(type) {
+  const labels = {
+    install_station: "Install Station",
+    found_settlement: "Found Settlement",
+    upgrade_station: "Upgrade Station",
+    upgrade_elevator: "Upgrade Elevator"
+  };
+  return labels[type] ?? type.replace(/_/g, " ");
 }
 
 function getGoodIcon(good) {
