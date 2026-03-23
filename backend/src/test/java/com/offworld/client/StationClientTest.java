@@ -66,7 +66,7 @@ class StationClientTest {
 
 
     @Test
-    @DisplayName("transferGoods — transfert réussi retourne le bon résultat")
+    @DisplayName("transferGoods — successful transfer returns correct result")
     void transferGoods_success() throws InterruptedException {
         mockServer.enqueue(new MockResponse()
                 .setBodyDelay(100, TimeUnit.MILLISECONDS)
@@ -130,7 +130,7 @@ class StationClientTest {
     }
 
     @Test
-    @DisplayName("transferGoods — erreur 503 propage une exception réactive")
+    @DisplayName("transferGoods — 503 error propagates reactive exception")
     void transferGoods_serverError_propagatesError() {
         mockServer.enqueue(new MockResponse().setResponseCode(503));
 
@@ -142,7 +142,7 @@ class StationClientTest {
     }
 
     @Test
-    @DisplayName("transferGoods — direction to_surface envoyée correctement dans la requête")
+    @DisplayName("transferGoods — to_surface direction sent correctly in request")
     void transferGoods_toSurface_requestIsCorrect() throws InterruptedException {
         mockServer.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -167,7 +167,7 @@ class StationClientTest {
 
     
     @Test
-    @DisplayName("getElevatorStatus — désérialise correctement le JSON snake_case")
+    @DisplayName("getElevatorStatus — deserializes snake_case JSON correctly")
     void getElevatorStatus_parsesCorrectly() {
         mockServer.enqueue(new MockResponse()
                 .setResponseCode(200)

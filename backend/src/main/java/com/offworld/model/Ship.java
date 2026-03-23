@@ -19,7 +19,7 @@ public record Ship(
         Long arrivalAt,
         Long operationCompleteAt
 ) {
-    // Les statuts possibles côté serveur (snake_case)
+    // Possible statuses on the server side (snake_case)
     public static final String IN_TRANSIT_TO_ORIGIN        = "in_transit_to_origin";
     public static final String AWAITING_ORIGIN_DOCKING_AUTH = "awaiting_origin_docking_auth";
     public static final String LOADING                     = "loading";

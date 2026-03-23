@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** Stratégie de trading automatique. Boucle toutes les N secondes pour acheter/vendre. */
+/** Automated trading strategy. Loop every N seconds to buy/sell. */
 @Service
 public class TradingStrategy {
 
@@ -32,7 +32,7 @@ public class TradingStrategy {
     private static final long MIN_STOCK_BUFFER = 50;
     private static final long ORDER_MAX_AGE_MS = 5 * 60 * 1000L;
     private static final long TRUCKING_MIN_QTY = 100L;
-    // Prix de départ quand le marché est vide (par good)
+    // Starting price when market is empty (per good)
     private static final Map<String, Long> DEFAULT_PRICES = Map.of(
         "food", 5L, "water", 3L, "iron_ore", 8L,
         "copper_ore", 10L, "silicon", 15L
@@ -63,17 +63,17 @@ public class TradingStrategy {
                 .onBackpressureDrop()
                 .flatMap(tick -> runOneTick()
                         .onErrorResume(e -> {
-                            log.error("Erreur dans la stratégie (tick {}): {}", tick, e.getMessage());
+                            log.error("Error in strategy (tick {}): {}", tick, e.getMessage());
                             return Mono.empty();
                         })
                 )
-                .doOnSubscribe(s -> log.info("Boucle de stratégie démarrée (interval={})", interval));
+                .doOnSubscribe(s -> log.info("Strategy loop started (interval={})", interval));
     }
 
     Mono<Void> runOneTick() {
-        log.debug("Tick stratégie...");
+        log.debug("Strategy tick...");
         if (state.getMyPlanetId() == null) {
-            log.warn("Station pas encore initialisée, skip");
+            log.warn("Station not yet initialized, skip");
             return Mono.empty();
         }
 
@@ -93,7 +93,7 @@ public class TradingStrategy {
                     .map(o -> o.goodName())
                     .collect(java.util.stream.Collectors.toSet());
 
-            log.info("[TICK] Inventaire station: {}u stockées | {} ordres ouverts ({}v/{}a)",
+            log.info("[TICK] Station inventory: {}u stored | {} open orders ({}b/{}s)",
                     station.totalStored(), openOrders.size(),
                     goodsAlreadySelling.size(), goodsAlreadyBuying.size());
 
@@ -130,7 +130,7 @@ public class TradingStrategy {
                         Long bestBid = book.bestBid();
                         Long lastPrice = book.lastTradePrice();
 
-                        // Si marché vide, on utilise un prix par défaut pour amorcer
+                        // If market is empty, use default price to bootstrap
                         long refPrice;
                         if (bestBid != null) {
                             refPrice = bestBid;
@@ -138,12 +138,12 @@ public class TradingStrategy {
                             refPrice = lastPrice;
                         } else {
                             refPrice = DEFAULT_PRICES.getOrDefault(good, 5L);
-                            log.info("Marché vide pour {}, prix de départ: {}", good, refPrice);
+                            log.info("Empty market for {}, starting price: {}", good, refPrice);
                         }
 
                         long sellPrice = Math.max(refPrice, 1L);
 
-                        log.info("Vente de {} unités de {} à {} crédits/u", toSell, good, sellPrice);
+                        log.info("Selling {} units of {} at {} credits/u", toSell, good, sellPrice);
                         return marketClient.placeOrder(
                                 MarketOrder.PlaceOrderRequest.limitSell(good, sellPrice, toSell, state.getMyPlanetId())
                         ).then();
@@ -163,7 +163,7 @@ public class TradingStrategy {
     // Niveau 1 : prix SSE dispo → limit buy si sous le seuil. Niveau 2 : order book → market buy pour amorcer le cache SSE.
     private Mono<Void> buyGoodsFromMarket(com.offworld.model.StationInfo station,
                                           java.util.Set<String> goodsAlreadyBuying) {
-        // On n'achète que si on a de la place en orbite
+        // We only buy if we have room in orbit
         if (station.freeSpace() < MIN_STOCK_BUFFER * 2) {
             log.debug("[BUY] Station pleine ({}/{} u), skip rachats", station.totalStored(), station.maxStorage());
             return Mono.empty();
@@ -191,7 +191,7 @@ public class TradingStrategy {
                 // Prix SSE connu mais pas sous le seuil → on tombe au niveau 2 pour amorcer
             }
 
-            // Niveau 2 : amorçage via order book
+            // Level 2: bootstrap via order book
             buys.add(
                     marketClient.getOrderBook(good)
                             .flatMap(book -> {
@@ -201,14 +201,14 @@ public class TradingStrategy {
                                     log.debug("[BUY] Pas d'offre disponible pour {}", good);
                                     return Mono.empty();
                                 }
-                                // N'achète que si le prix ask est raisonnable
+                                // Only buy if ask price is reasonable
                                 if (bestAsk > defaultPrice * 2) return Mono.empty();
                                 long buyQty = 30L;
-                                log.info("[ORDERBOOK→BUY] Amorçage marché {} : bestAsk={}c → market buy {}u (génère SSE)",
+                                log.info("[ORDERBOOK→BUY] Bootstrap market {}: bestAsk={}c → market buy {}u (generates SSE)",
                                         good, bestAsk, buyQty);
                                 return marketClient.placeOrder(
                                         MarketOrder.PlaceOrderRequest.limitBuy(good, bestAsk, buyQty, state.getMyPlanetId())
-                                ).doOnNext(o -> log.info("[BUY] ✓ Ordre placé id={} → trade attendu → SSE",
+                                ).doOnNext(o -> log.info("[BUY] ✓ Order placed id={} → trade expected → SSE",
                                         o.id().substring(0, 8)))
                                 .then();
                             })
@@ -226,7 +226,7 @@ public class TradingStrategy {
         return marketClient.placeOrder(
                         MarketOrder.PlaceOrderRequest.limitBuy(good, price, qty, state.getMyPlanetId())
                 )
-                .doOnNext(o -> log.info("[BUY] Ordre buy placé: id={} {}× {} @ {}c",
+                .doOnNext(o -> log.info("[BUY] Buy order placed: id={} {}× {} @ {}c",
                         o.id().substring(0, 8), o.quantity(), o.goodName(), o.price()))
                 .then()
                 .onErrorResume(e -> {
@@ -237,7 +237,7 @@ public class TradingStrategy {
 
     /**
      * Annule les ordres qui sont ouverts depuis trop longtemps.
-     * Un ordre qui traîne trop sans être rempli est probablement mal pricé.
+     * An order that hangs too long without being filled is probably poorly priced.
      */
     private Mono<Void> cancelOldOrders(java.util.List<com.offworld.model.MarketOrder> openOrders) {
         long now = System.currentTimeMillis();
@@ -252,8 +252,8 @@ public class TradingStrategy {
     }
 
     /**
-     * Crée une demande d'export pour générer de l'offre sur un good.
-     * Utile pour "amorcer" notre économie si notre station manque de goods à vendre.
+     * Creates an export request to generate supply for a good.
+     * Useful to "bootstrap" our economy if our station lacks goods to sell.
      */
     private Mono<Void> shipGoodsIfNeeded(StationInfo station) {
         var planets = state.getConnectedPlanets();
@@ -300,7 +300,7 @@ public class TradingStrategy {
                 null
         );
         return tradeClient.createTradeRequest(req)
-                .doOnNext(r -> log.info("Export request créée: id={} good={}", r.id(), r.goodName()))
+                .doOnNext(r -> log.info("Export request created: id={} good={}", r.id(), r.goodName()))
                 .then();
     }
 }

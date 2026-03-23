@@ -1,17 +1,17 @@
 # Offworld Bot Client
 
-Client Java réactif pour automatiser le trading sur le serveur Offworld Trading Manager.
+Reactive Java client to automate trading on the Offworld Trading Manager server.
 
-## Librairie réactive choisie
+## Reactive library chosen
 
-Nous avons choisi **Project Reactor** via **Spring WebFlux**.
+We chose **Project Reactor** via **Spring WebFlux**.
 
-Pourquoi :
+Why:
 
-- `WebClient` est nativement réactif et couvre tous les appels HTTP du projet
-- Reactor fournit directement `Mono`, `Flux`, `flatMap`, `zip`, `retry`, `timeout` et `Flux.interval`
-- Spring Boot simplifie le serveur webhook et l'injection de dépendances
-- la pile couvre tous les patterns demandés : sync non bloquant, polling, SSE et webhooks
+- `WebClient` is natively reactive and covers all HTTP calls in the project
+- Reactor provides directly `Mono`, `Flux`, `flatMap`, `zip`, `retry`, `timeout` and `Flux.interval`
+- Spring Boot simplifies the webhook server and dependency injection
+- the stack covers all required patterns: non-blocking sync, polling, SSE and webhooks
 
 ## Build
 
@@ -22,7 +22,7 @@ mvn test
 
 ## Configuration
 
-Fichier principal : `src/main/resources/application.yml`
+Main file: `src/main/resources/application.yml`
 
 ```yaml
 offworld:
@@ -37,34 +37,34 @@ server:
   port: 8081
 ```
 
-## Exécution
+## Execution
 
-### 1. Démarrer le serveur de jeu
+### 1. Start the game server
 
-Depuis `server/` :
+From `server/` :
 
 ```bash
 cargo run -- --seed seed.json
 ```
 
-### 2. Démarrer le bot
+### 2. Start the bot
 
-Depuis `backend/` :
+From `backend/` :
 
 ```bash
 mvn spring-boot:run
 ```
 
-## Ce que fait l'application
+## What the application does
 
-- charge la galaxie et les prix au démarrage
-- enregistre l'URL de webhook du joueur
-- écoute le flux SSE du marché
-- poll l'état des vaisseaux
-- exécute une boucle de stratégie périodique
-- traite les événements push via `POST /webhooks`
+- loads the galaxy and prices at startup
+- registers the player's webhook URL
+- listens to the market SSE stream
+- polls the state of ships
+- executes a periodic strategy loop
+- processes push events via `POST /webhooks`
 
-## Pipeline réactif
+## Reactive pipeline
 
 ```mermaid
 flowchart TD
@@ -84,10 +84,10 @@ flowchart TD
 
 ## Architecture
 
-Le document d'architecture court est dans `ARCHITECTURE.md`.
+The short architecture document is in `ARCHITECTURE.md`.
 
 ```
-Serveur de jeu
+Game server
   └─ POST http://localhost:8081/webhooks  { "type": "ship_docked", ... }
        └─ WebhookController.handleEvent(event)   Mono<ResponseEntity>
             └─ switch(event.type)
@@ -95,7 +95,7 @@ Serveur de jeu
                  └─ SHIP_UNDOCKED  → ShipService.authorizeUndocking(shipId)
 ```
 
-Pattern utilisé : **handler réactif Spring WebFlux** — `@PostMapping` retourne un `Mono<ResponseEntity>`, Spring Netty traite la requête sans bloquer. Les `sealed interfaces` Java 21 rendent le pattern matching exhaustif et sûr.
+Pattern used: **reactive Spring WebFlux handler** — `@PostMapping` returns a `Mono<ResponseEntity>`, Spring Netty processes the request without blocking. Java 21 `sealed interfaces` make pattern matching exhaustive and safe.
 
 ---
 

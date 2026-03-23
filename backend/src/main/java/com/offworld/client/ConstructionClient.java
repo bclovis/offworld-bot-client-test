@@ -37,9 +37,9 @@ public class ConstructionClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Améliorer les baies de docking (pour gérer plus de ships simultanément)
+    // Upgrade docking bays (to handle more ships simultaneously)
     public Mono<ConstructionProject> upgradeDockingBays(String planetId) {
-        log.info("Upgrade docking bays sur {}", planetId);
+        log.info("Upgrading docking bays on {}", planetId);
         return webClient.post()
                 .uri("/construction/upgrade-station")
                 .bodyValue(Map.of("planet_id", planetId, "upgrade_type", "docking_bays"))
@@ -48,9 +48,9 @@ public class ConstructionClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Augmenter la capacité de stockage de la station
+    // Increase station storage capacity
     public Mono<ConstructionProject> upgradeStorage(String planetId) {
-        log.info("Upgrade storage sur {}", planetId);
+        log.info("Upgrading storage on {}", planetId);
         return webClient.post()
                 .uri("/construction/upgrade-station")
                 .bodyValue(Map.of("planet_id", planetId, "upgrade_type", "storage"))
@@ -59,9 +59,9 @@ public class ConstructionClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Ajouter une cabine à l'ascenseur spatial
+    // Add a cabin to the space elevator
     public Mono<ConstructionProject> upgradeElevator(String planetId) {
-        log.info("Upgrade elevator sur {}", planetId);
+        log.info("Upgrading elevator on {}", planetId);
         return webClient.post()
                 .uri("/construction/upgrade-elevator")
                 .bodyValue(Map.of("planet_id", planetId))
@@ -70,9 +70,9 @@ public class ConstructionClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Construire une nouvelle station sur une planète settlée
+    // Build a new station on a settled planet
     public Mono<ConstructionProject> installStation(String sourcePlanetId, String targetPlanetId, String stationName) {
-        log.info("Installation station sur {} depuis {}", targetPlanetId, sourcePlanetId);
+        log.info("Installing station on {} from {}", targetPlanetId, sourcePlanetId);
         return webClient.post()
                 .uri("/construction/install-station")
                 .bodyValue(Map.of(

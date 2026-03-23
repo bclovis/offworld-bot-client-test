@@ -57,7 +57,7 @@ public class OffworldApplication implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info("=== Démarrage du bot Offworld | serveur={} joueur={} ===",
+        log.info("=== Offworld bot starting | server={} player={} ===",
                 config.serverUrl(), config.playerId());
 
 
@@ -68,65 +68,65 @@ public class OffworldApplication implements CommandLineRunner {
                 .then(Mono.defer(() -> elevatorService.checkAndTransferToOrbit()))
                 .then(Mono.defer(() -> constructionService.syncProjects()))
                 .onErrorResume(e -> {
-                    log.warn("Init incomplète (serveur injoignable ?) : {}", e.getMessage());
+                    log.warn("Incomplete initialization (server unreachable?): {}", e.getMessage());
                     return Mono.empty();
                 })
                 .block(Duration.ofSeconds(60));
 
-        log.info("Initialisation terminée — lancement des boucles réactives");
+        log.info("Initialization complete — starting reactive loops");
 
-        // [3] Stream SSE marché
+        // [3] Market SSE stream
         subscriptions.add(
                 marketService.startMarketStream()
                         .subscribe(
-                                e -> { /* traitement dans doOnNext du service */ },
-                                err -> log.error("[SSE] Stream arrêté : {}", err.getMessage())
+                                e -> { /* processing in service doOnNext */ },
+                                err -> log.error("[SSE] Stream stopped: {}", err.getMessage())
                         )
         );
 
-        // [4] Polling ships
+        // [4] Ships polling
         subscriptions.add(
                 shipService.startPolling(Duration.ofMillis(config.shipPollingIntervalMs()))
                         .subscribe(
-                                ship -> { /* transitions gérées dans ShipService */ },
-                                err -> log.error("[POLL] Polling ships arrêté : {}", err.getMessage())
+                                ship -> { /* state transitions managed in ShipService */ },
+                                err -> log.error("[POLL] Ships polling stopped: {}", err.getMessage())
                         )
         );
 
-        // [1+2] Boucle de stratégie
+        // [1+2] Strategy loop
         subscriptions.add(
                 tradingStrategy.startStrategyLoop(Duration.ofMillis(config.strategyIntervalMs()))
                         .subscribe(
                                 v -> {},
-                                err -> log.error("[STRATEGY] Boucle arrêtée : {}", err.getMessage())
+                                err -> log.error("[STRATEGY] Loop stopped: {}", err.getMessage())
                         )
         );
 
-        // [5] Polling construction toutes les 30s
+        // [5] Construction polling every 30s
         subscriptions.add(
                 constructionService.startPolling(Duration.ofSeconds(30))
                         .subscribe(
                                 v -> {},
-                                err -> log.error("[CONSTRUCTION] Boucle arrêtée : {}", err.getMessage())
+                                err -> log.error("[CONSTRUCTION] Loop stopped: {}", err.getMessage())
                         )
         );
 
-        // [2] Check ascenseur toutes les 60s
+        // [2] Check elevator every 60s
         subscriptions.add(
                 Flux.interval(Duration.ofSeconds(60))
                         .onBackpressureDrop()
                         .flatMap(tick -> elevatorService.checkAndTransferToOrbit()
                                 .onErrorResume(e -> {
-                                    log.warn("[ELEVATOR] Erreur tick {} : {}", tick, e.getMessage());
+                                    log.warn("[ELEVATOR] Error tick {}: {}", tick, e.getMessage());
                                     return Mono.empty();
                                 }))
                         .subscribe(
                                 v -> {},
-                                err -> log.error("[ELEVATOR] Boucle arrêtée : {}", err.getMessage())
+                                err -> log.error("[ELEVATOR] Loop stopped: {}", err.getMessage())
                         )
         );
 
-        log.info("[OK] Bot opérationnel — 5 boucles actives + webhook server sur port {}",
+        log.info("[OK] Bot operational — 5 active loops + webhook server on port {}",
                 config.webhookUrl());
     }
 }

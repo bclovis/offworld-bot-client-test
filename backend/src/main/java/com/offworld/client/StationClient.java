@@ -65,7 +65,7 @@ public class StationClient {
                 .subscribeOn(Schedulers.boundedElastic())
                 .doOnSuccess(r -> {
                     if (r.success()) {
-                        log.info("Transfer OK - {} unités via cabin {}", r.totalQuantity(), r.cabinId());
+                        log.info("Transfer OK - {} units via cabin {}", r.totalQuantity(), r.cabinId());
                     } else {
                         log.warn("Transfer FAILED - {}", r.failureReason());
                     }

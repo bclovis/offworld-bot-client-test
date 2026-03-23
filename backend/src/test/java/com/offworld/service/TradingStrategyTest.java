@@ -60,8 +60,8 @@ class TradingStrategyTest {
     @BeforeEach
     void setUp() {
         lenient().when(config.playerId()).thenReturn("alpha-team");
-        // Par défaut, getOrderBook retourne un book vide (pas de bestAsk → pas de buy)
-        // Les tests qui veulent un comportement spécifique surchargent ce stub.
+        // By default, getOrderBook returns empty book (no bestAsk → no buy)
+        // Tests that want specific behavior override this stub.
         lenient().when(marketClient.getOrderBook(anyString()))
                 .thenReturn(Mono.just(new OrderBook("?", List.of(), List.of(), null)));
         tradingStrategy = new TradingStrategy(
@@ -93,7 +93,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("prix par défaut si marché vide")
+    @DisplayName("default price if market empty")
     void strategyLoop_usesDefaultPrice() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(galaxyService.getMyStationInventory())
@@ -158,7 +158,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("skip si station pas initialisée")
+    @DisplayName("skip if station not initialized")
     void strategyLoop_skipsIfStationNotInitialized() {
         when(state.getMyPlanetId()).thenReturn(null);
 
@@ -170,7 +170,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("ne place pas d'ordre si sell déjà ouvert")
+    @DisplayName("don't place order if sell already open")
     void strategyLoop_skipsIfOrderExists() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(galaxyService.getMyStationInventory())
@@ -184,7 +184,7 @@ class TradingStrategyTest {
 
         verify(marketClient, never()).placeOrder(any());
         // Le chemin d'achat (niveau 2) peut appeler getOrderBook pour amorcer le cache SSE,
-        // mais aucun ordre ne doit être placé car les books sont vides (pas de bestAsk).
+        // but no orders should be placed because books are empty (no bestAsk).
     }
 
     @Test
@@ -204,7 +204,7 @@ class TradingStrategyTest {
    
 
     @Test
-    @DisplayName("écrit un trucking si stock élevé et aucun ship actif")
+    @DisplayName("write trucking if high stock and no active ships")
     void shipGoods_hiresWhenStockHigh() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(galaxyService.getMyStationInventory())
@@ -226,7 +226,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("skip le trucking si ships déjà actifs")
+    @DisplayName("skip trucking if ships already active")
     void shipGoods_skipsWhenShipsActive() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(galaxyService.getMyStationInventory())
@@ -243,7 +243,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("createExportDemand — crée la trade request")
+    @DisplayName("createExportDemand — creates trade request")
     void createExportDemand_createsRequest() {
         when(state.getMyPlanetId()).thenReturn("p1");
         when(tradeClient.createTradeRequest(any())).thenReturn(Mono.just(
@@ -259,7 +259,7 @@ class TradingStrategyTest {
     }
 
     @Test
-    @DisplayName("createExportDemand — no-op si station pas initialisée")
+    @DisplayName("createExportDemand — no-op if station not initialized")
     void createExportDemand_noopIfNotInitialized() {
         when(state.getMyPlanetId()).thenReturn(null);
 

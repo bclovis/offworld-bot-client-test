@@ -18,11 +18,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * PATTERN WEBHOOK : Le serveur nous envoie des POST quand des événements se produisent.
- * On doit exposer ce endpoint et y répondre rapidement (le serveur a un timeout court).
+ * WEBHOOK PATTERN: The server sends us POST requests when events occur.
+ * We must expose this endpoint and respond quickly (server has a short timeout).
  *
- * Le serveur envoie sur la même URL les events de ships ET de construction,
- * donc on dispatch manuellement selon le champ "type".
+ * The server sends ship AND construction events on the same URL,
+ * so we manually dispatch based on the "type" field.
  */
 @RestController
 @RequestMapping("/webhooks")
@@ -30,7 +30,7 @@ public class WebhookController {
 
     private static final Logger log = LoggerFactory.getLogger(WebhookController.class);
 
-    // Types d'events qui concernent les ships
+    // Types of events that concern ships
     private static final Set<String> SHIP_EVENTS = Set.of(
             "origin_docking_request", "docking_request", "ship_docked", "ship_complete"
     );
@@ -48,24 +48,24 @@ public class WebhookController {
     @PostMapping
     public Mono<ResponseEntity<String>> handleWebhook(@RequestBody Map<String, Object> rawPayload) {
         String type = (String) rawPayload.get("type");
-        log.info("Webhook reçu, type={}", type);
+        log.info("Webhook received, type={}", type);
 
         if (type == null) {
-            log.warn("Webhook sans champ 'type', payload={}", rawPayload);
+            log.warn("Webhook without 'type' field, payload={}", rawPayload);
             return Mono.just(ResponseEntity.badRequest().body("missing type"));
         }
 
         if (SHIP_EVENTS.contains(type)) {
             try {
                 ShipWebhookEvent event = objectMapper.convertValue(rawPayload, ShipWebhookEvent.class);
-                // Traitement asynchrone - le serveur a un timeout court donc on répond vite
+                // Async processing - server has short timeout so we respond quickly
                 shipService.handleWebhookEvent(event)
                         .subscribe(
                                 v -> {},
-                                e -> log.error("Erreur traitement ship webhook: {}", e.getMessage())
+                                e -> log.error("Error processing ship webhook: {}", e.getMessage())
                         );
             } catch (Exception e) {
-                log.error("Impossible de parser ship webhook: {}", e.getMessage());
+                log.error("Cannot parse ship webhook: {}", e.getMessage());
             }
         } else if ("construction_complete".equals(type)) {
             try {
@@ -73,16 +73,16 @@ public class WebhookController {
                 constructionService.onConstructionComplete(event)
                         .subscribe(
                                 v -> {},
-                                e -> log.error("Erreur traitement construction webhook: {}", e.getMessage())
+                                e -> log.error("Error processing construction webhook: {}", e.getMessage())
                         );
             } catch (Exception e) {
-                log.error("Impossible de parser construction webhook: {}", e.getMessage());
+                log.error("Cannot parse construction webhook: {}", e.getMessage());
             }
         } else {
-            log.warn("Type de webhook inconnu: {}", type);
+            log.warn("Unknown webhook type: {}", type);
         }
 
-        // On répond 200 immédiatement dans tous les cas
+        // We respond 200 immediately in all cases
         return Mono.just(ResponseEntity.ok("ok"));
     }
 }

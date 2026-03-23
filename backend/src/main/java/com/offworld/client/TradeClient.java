@@ -20,9 +20,9 @@ public class TradeClient {
         this.webClient = webClient;
     }
 
-    // Crée une demande d'import ou d'export pour générer de l'offre/demande
+    // Creates an import or export request to generate supply/demand
     public Mono<TradeRequest> createTradeRequest(TradeRequest.CreateTradeRequest req) {
-        log.info("Création trade request: {} {} sur {}", req.direction(), req.goodName(), req.planetId());
+        log.info("Creating trade request: {} {} on {}", req.direction(), req.goodName(), req.planetId());
         return webClient.post()
                 .uri("/trade")
                 .bodyValue(req)

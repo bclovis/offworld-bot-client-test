@@ -12,8 +12,8 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 
 /**
- * Client pour les endpoints galaxy : systèmes, planètes, settlements.
- * Toutes les requêtes sont non-bloquantes grâce au WebClient.
+ * Client for galaxy endpoints: systems, planets, settlements.
+ * All requests are non-blocking thanks to WebClient.
  */
 @Component
 public class GalaxyClient {
@@ -25,7 +25,7 @@ public class GalaxyClient {
         this.webClient = webClient;
     }
 
-    // Récupère tous les systèmes stellaires de la galaxie
+    // Fetches all stellar systems in the galaxy
     public Flux<StarSystem> getAllSystems() {
         return webClient.get()
                 .uri("/systems")
@@ -35,7 +35,7 @@ public class GalaxyClient {
                 .doOnError(e -> log.error("Erreur getAllSystems: {}", e.getMessage(), e));
     }
 
-    // On peut filtrer par type d'étoile si besoin
+    // Can filter by star type if needed
     public Flux<StarSystem> getSystemsByType(String starType) {
         return webClient.get()
                 .uri(u -> u.path("/systems").queryParam("star_type", starType).build())
@@ -68,7 +68,7 @@ public class GalaxyClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Liste les planètes avec settlement dans un système (exclut les non-habitées)
+    // Lists planets with settlements in a system (excludes uninhabited ones)
     public Flux<Planet> getSettledPlanets(String systemName) {
         return webClient.get()
                 .uri("/settlements/{system}", systemName)

@@ -11,10 +11,10 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 /**
- * Expose l'état interne du bot au frontend de monitoring.
- * Endpoint: GET /bot/construction → liste des projets de construction actifs.
+ * Exposes internal bot state to monitoring frontend.
+ * Endpoint: GET /bot/construction → list of active construction projects.
  *
- * @CrossOrigin permet au frontend Vite (dev) d'appeler directement ce serveur.
+ * @CrossOrigin allows the Vite frontend (dev) to call this server directly.
  */
 @RestController
 @RequestMapping("/bot")

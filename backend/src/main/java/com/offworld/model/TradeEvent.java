@@ -2,7 +2,7 @@ package com.offworld.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
-// Événement reçu via le stream SSE GET /market/trades
+// Event received via SSE stream GET /market/trades
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record TradeEvent(
         String id,

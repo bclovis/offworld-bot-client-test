@@ -1,14 +1,14 @@
 # Offworld Pixel Ops
 
-Dashboard React qui visualise le serveur Offworld.
+React dashboard that visualizes the Offworld server.
 
-## Rôle
+## Role
 
-- afficher la galaxie
-- suivre les trades en direct
-- montrer les crédits, ordres, vaisseaux et classement
+- display the galaxy
+- track trades in real-time
+- show credits, orders, ships and leaderboard
 
-## Lancement
+## Getting started
 
 ```bash
 cd frontend
@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Ouvrir ensuite `http://localhost:5173`.
+Then open `http://localhost:5173`.
 
 ## Build
 
@@ -27,31 +27,31 @@ npm run lint
 
 ## Configuration
 
-Le proxy Vite en développement redirige :
+The Vite proxy in development redirects:
 
 ```text
 /api/* -> http://localhost:3000
 ```
 
-À la connexion, l'interface demande :
+At connection, the interface asks for:
 
-- l'URL du serveur
-- le `player-id`
-- l'`api-key`
+- server URL
+- `player-id`
+- `api-key`
 
-## Flux de données
+## Data flow
 
 ```mermaid
 flowchart LR
-    S[Serveur Offworld] -->|REST| A[App React]
+    S[Offworld Server] -->|REST| A[React App]
     S -->|SSE trades| A
-    A -->|Polling public| S
-    A -->|Polling privé| S
+    A -->|Public polling| S
+    A -->|Private polling| S
 ```
 
-## Patterns utilisés
+## Patterns used
 
-- `fetch` pour les chargements initiaux
-- SSE pour le flux de trades
-- `setInterval` pour le polling public et privé
-- React state pour refléter les changements à l'écran
+- `fetch` for initial loads
+- SSE for the trade stream
+- `setInterval` for public and private polling
+- React state to reflect changes on screen

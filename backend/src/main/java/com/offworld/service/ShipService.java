@@ -12,7 +12,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
-/** Gère le lifecycle des ships via webhooks (push) et polling (fallback). */
+/** Manages ship lifecycle via webhooks (push) and polling (fallback). */
 @Service
 public class ShipService {
 
@@ -28,24 +28,24 @@ public class ShipService {
     public Mono<Void> handleWebhookEvent(ShipWebhookEvent event) {
         return switch (event) {
             case ShipWebhookEvent.OriginDockingRequest e -> {
-                log.info("Ship {} arrive à l'origine, autorisation docking", e.shipId());
+                log.info("Ship {} arriving at origin, authorizing docking", e.shipId());
                 yield shipClient.dock(e.shipId())
                         .doOnNext(ship -> state.updateShip(ship))
                         .then();
             }
             case ShipWebhookEvent.DockingRequest e -> {
-                log.info("Ship {} arrive à destination, autorisation docking", e.shipId());
+                log.info("Ship {} arriving at destination, authorizing docking", e.shipId());
                 yield shipClient.dock(e.shipId())
                         .doOnNext(ship -> state.updateShip(ship))
                         .then();
             }
             case ShipWebhookEvent.ShipDocked e -> {
-                log.info("Ship {} docké, statut={}", e.shipId(), e.status());
-                // Le ship est en train de charger/décharger, on le met à jour via polling
+                log.info("Ship {} docked, status={}", e.shipId(), e.status());
+                // The ship is loading/unloading, we update it via polling
                 yield Mono.empty();
             }
             case ShipWebhookEvent.ShipComplete e -> {
-                log.info("Ship {} terminé avec succès!", e.shipId());
+                log.info("Ship {} completed successfully!", e.shipId());
                 state.removeShip(e.shipId());
                 yield Mono.empty();
             }
@@ -56,7 +56,7 @@ public class ShipService {
         return Flux.interval(interval)
                 .onBackpressureDrop()
                 .flatMap(tick -> pollAllActiveShips())
-                .doOnError(e -> log.error("Erreur polling ships: {}", e.getMessage()))
+                .doOnError(e -> log.error("Error polling ships: {}", e.getMessage()))
                 .retry();
     }
 
@@ -69,7 +69,7 @@ public class ShipService {
                         shipClient.getShip(shipId)
                                 .doOnNext(ship -> handleShipStateChange(ship))
                                 .onErrorResume(e -> {
-                                    log.warn("Impossible de poll le ship {}: {}", shipId, e.getMessage());
+                                    log.warn("Cannot poll ship {}: {}", shipId, e.getMessage());
                                     return Mono.empty();
                                 })
                 );
@@ -79,25 +79,25 @@ public class ShipService {
         Ship previous = state.getShip(ship.id());
         state.updateShip(ship);
 
-        // Si le statut a changé, on log et on réagit
+        // If the status has changed, we log and react
         if (previous != null && !previous.status().equals(ship.status())) {
-            log.info("Ship {} changement: {} -> {}", ship.id(), previous.status(), ship.status());
+            log.info("Ship {} change: {} -> {}", ship.id(), previous.status(), ship.status());
         }
 
-        // Transitions qui nécessitent notre action (détectées par polling)
+        // Transitions that need our action (detected by polling)
         if (ship.needsOriginUndock()) {
-            log.info("Ship {} prêt à fuir l'origine, undocking", ship.id());
+            log.info("Ship {} ready to leave origin, undocking", ship.id());
             shipClient.undock(ship.id())
                     .doOnNext(state::updateShip)
                     .subscribe();
         } else if (ship.needsDestUndock()) {
-            log.info("Ship {} a fini de décharger, undocking", ship.id());
+            log.info("Ship {} finished unloading, undocking", ship.id());
             shipClient.undock(ship.id())
                     .doOnNext(updated -> {
                         state.updateShip(updated);
                         if (updated.isDone()) {
                             state.removeShip(updated.id());
-                            log.info("Ship {} livraison complète!", updated.id());
+                            log.info("Ship {} delivery complete!", updated.id());
                         }
                     })
                     .subscribe();
@@ -106,12 +106,12 @@ public class ShipService {
         }
     }
 
-    // Récupère tous nos ships actifs depuis le serveur et les met dans l'état
+    // Fetches all our active ships from the server and adds them to the state
     public Mono<Void> syncActiveShips() {
         return shipClient.getMyShips()
                 .filter(s -> !Ship.COMPLETE.equals(s.status()))
                 .doOnNext(state::trackShip)
                 .then()
-                .doOnSuccess(v -> log.info("Ships actifs synchronisés: {}", state.getActiveShips().size()));
+                .doOnSuccess(v -> log.info("Active ships synchronized: {}", state.getActiveShips().size()));
     }
 }

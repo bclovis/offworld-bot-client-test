@@ -12,34 +12,34 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * État partagé de l'application.
- * Accessible par tous les services via injection Spring.
- * On utilise des ConcurrentHashMap pour éviter les problèmes de concurrence
- * entre le thread SSE, le webhook controller et la boucle de stratégie.
+ * Shared application state.
+ * Accessible by all services via Spring injection.
+ * We use ConcurrentHashMap to avoid concurrency issues
+ * between the SSE thread, the webhook controller and the strategy loop.
  */
 @Component
 public class AppState {
 
-    // ID de notre planète principale (set au démarrage)
+    // ID of our main planet (set at startup)
     private volatile String myPlanetId;
     private volatile String mySystemName;
 
-    // Cache des prix : good_name -> dernier prix observé (depuis SSE)
+    // Price cache: good_name -> last observed price (from SSE)
     private final ConcurrentHashMap<String, Long> lastPrices = new ConcurrentHashMap<>();
 
-    // Order books mis à jour par la stratégie
+    // Order books updated by the strategy
     private final ConcurrentHashMap<String, OrderBook> orderBooks = new ConcurrentHashMap<>();
 
-    // Ships actifs qu'on suit (ship_id -> ship)
+    // Active ships we track (ship_id -> ship)
     private final ConcurrentHashMap<String, Ship> activeShips = new ConcurrentHashMap<>();
 
-    // Planètes connectées qu'on a découvertes (planet_id -> planet)
+    // Connected planets we discovered (planet_id -> planet)
     private final ConcurrentHashMap<String, Planet> connectedPlanets = new ConcurrentHashMap<>();
 
-    // Projets de construction actifs (project_id -> project)
+    // Active construction projects (project_id -> project)
     private final ConcurrentHashMap<String, ConstructionProject> constructionProjects = new ConcurrentHashMap<>();
 
-    // Nos crédits actuels (mis à jour périodiquement)
+    // Our current credits (updated periodically)
     private volatile long credits = 0;
 
     public String getMyPlanetId() { return myPlanetId; }

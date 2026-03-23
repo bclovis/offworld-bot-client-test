@@ -44,7 +44,7 @@ class MarketServiceTest {
 
 
     @Test
-    @DisplayName("startMarketStream — met à jour le cache de prix à chaque trade")
+    @DisplayName("startMarketStream — updates price cache on each trade")
     void startMarketStream_updatesPriceCache() {
         // GIVEN : 3 trade events SSE
         var trade1 = new TradeEvent("t1", "food",   5L, 100L, "buyer1", "alpha-team", "p2", "p1", 1000L);
@@ -58,7 +58,7 @@ class MarketServiceTest {
                 .expectNext(trade1, trade2, trade3)
                 .verifyComplete();
 
-        // THEN : chaque prix est mis à jour dans l'état
+        // THEN: each price is updated in state
         verify(state).updatePrice("food",  5L);
         verify(state).updatePrice("water", 3L);
         verify(state).updatePrice("food",  6L);  
@@ -79,14 +79,14 @@ class MarketServiceTest {
                 .expectNextCount(5)
                 .verifyComplete();
 
-        // 5 mises à jour de prix
+        // 5 price updates
         verify(state, times(5)).updatePrice(eq("iron_ore"), anyLong());
     }
 
     @Test
     @DisplayName("startMarketStream — se termine proprement si le flux SSE se ferme")
     void startMarketStream_completesWhenStreamEnds() {
-        // GIVEN : flux vide (déconnexion serveur)
+        // GIVEN: empty stream (server disconnect)
         when(marketClient.streamTrades()).thenReturn(Flux.empty());
 
         StepVerifier.create(marketService.startMarketStream())
@@ -98,7 +98,7 @@ class MarketServiceTest {
 
 
     @Test
-    @DisplayName("initPrices — charge tous les prix et les stocke dans l'état")
+    @DisplayName("initPrices — loads all prices and stores in state")
     void initPrices_loadsAndStoresPrices() {
         // GIVEN
         var prices = Map.of("food", 5L, "water", 3L, "iron_ore", 8L, "silicon", 15L);
@@ -108,7 +108,7 @@ class MarketServiceTest {
         StepVerifier.create(marketService.initPrices())
                 .verifyComplete();
 
-        // THEN : chaque prix est enregistré
+        // THEN: each price is recorded
         verify(state).updatePrice("food",     5L);
         verify(state).updatePrice("water",    3L);
         verify(state).updatePrice("iron_ore", 8L);
@@ -116,7 +116,7 @@ class MarketServiceTest {
     }
 
     @Test
-    @DisplayName("initPrices — gère un map vide sans erreur")
+    @DisplayName("initPrices — handles empty map without error")
     void initPrices_emptyMapDoesNothing() {
         when(marketClient.getAllPrices()).thenReturn(Mono.just(Map.of()));
 
@@ -160,7 +160,7 @@ class MarketServiceTest {
         StepVerifier.create(marketService.cancelAllOpenOrders())
                 .verifyComplete();
 
-        // THEN : les 3 ordres sont annulés
+        // THEN: all 3 orders canceled
         verify(marketClient).cancelOrder("o1");
         verify(marketClient).cancelOrder("o2");
         verify(marketClient).cancelOrder("o3");

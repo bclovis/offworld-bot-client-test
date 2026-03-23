@@ -38,7 +38,7 @@ public class MarketClient {
                 .flatMap(sse -> {
                     try {
                         // Le serveur envoie parfois du Rust Debug format : {key=value, ...}
-                        // On normalise en JSON valide avant désérialisation
+                        // We normalize to valid JSON before deserialization
                         String data = normalizeToJson(sse.data().toString());
                         TradeEvent event = objectMapper.readValue(data, TradeEvent.class);
                         return Mono.just(event);
@@ -48,7 +48,7 @@ public class MarketClient {
                     }
                 })
                 .onBackpressureBuffer(500)
-                .doOnSubscribe(s -> log.info("Connecté au stream SSE /market/trades"))
+                .doOnSubscribe(s -> log.info("Connected to SSE stream /market/trades"))
                 .doOnError(e -> log.error("Erreur sur le stream SSE: {}", e.getMessage()))
                 .retryWhen(reactor.util.retry.Retry.fixedDelay(Long.MAX_VALUE, Duration.ofSeconds(5)));
     }
@@ -108,11 +108,11 @@ public class MarketClient {
     private static String normalizeToJson(String raw) {
         if (raw == null) return "{}";
         raw = raw.trim();
-        // Si c'est déjà du JSON (commence par '{" ou '["'), on ne touche pas
+        // If it's already JSON (starts with '{' or '['), leave it as is
         if (raw.startsWith("{\"") || raw.startsWith("[")) return raw;
         // Retire les accolades
         String inner = raw.replaceAll("^\\{", "").replaceAll("\\}$", "");
-        // Découpe par ", " (virgule-espace entre les champs)
+        // Split by ", " (comma-space between fields)
         String[] pairs = inner.split(",\\s*(?=[a-zA-Z_]+=)");
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < pairs.length; i++) {

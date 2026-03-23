@@ -28,8 +28,8 @@ public class PlayerClient {
                 .timeout(Duration.ofSeconds(10));
     }
 
-    // Enregistre notre URL de webhook sur le serveur
-    // C'est indispensable pour recevoir les events ship/construction
+    // Register our webhook URL on the server
+    // This is essential to receive ship/construction events
     public Mono<Player> registerWebhookUrl(String playerId, String webhookUrl) {
         log.info("Enregistrement du webhook URL: {}", webhookUrl);
         return webClient.put()
