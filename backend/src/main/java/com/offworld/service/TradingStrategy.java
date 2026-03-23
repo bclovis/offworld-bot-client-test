@@ -98,15 +98,17 @@ public class TradingStrategy {
                     goodsAlreadySelling.size(), goodsAlreadyBuying.size());
 
             return Mono.when(
-                    sellGoodsWeHave(station, goodsAlreadySelling),
-                    buyGoodsFromMarket(station, goodsAlreadyBuying),
+                    sellGoodsWeHave(station, goodsAlreadySelling, goodsAlreadyBuying),
+                    buyGoodsFromMarket(station, goodsAlreadyBuying, goodsAlreadySelling),
                     cancelOldOrders(openOrders),
                     shipGoodsIfNeeded(station)
             );
         });
     }
 
-    private Mono<Void> sellGoodsWeHave(StationInfo station, java.util.Set<String> goodsAlreadySelling) {
+    private Mono<Void> sellGoodsWeHave(StationInfo station,
+                                       java.util.Set<String> goodsAlreadySelling,
+                                       java.util.Set<String> goodsAlreadyBuying) {
         if (station.inventory() == null || station.inventory().isEmpty()) {
             return Mono.empty();
         }
@@ -120,6 +122,8 @@ public class TradingStrategy {
             if ("construction".equals(good)) continue;
             if (qty <= MIN_STOCK_BUFFER) continue;
             if (goodsAlreadySelling.contains(good)) continue;
+            // Avoid cross-side self matching for the same good.
+            if (goodsAlreadyBuying.contains(good)) continue;
 
             long toSell = Math.min(qty - MIN_STOCK_BUFFER, MAX_SELL_QUANTITY);
 
@@ -162,7 +166,8 @@ public class TradingStrategy {
 
     // Niveau 1 : prix SSE dispo → limit buy si sous le seuil. Niveau 2 : order book → market buy pour amorcer le cache SSE.
     private Mono<Void> buyGoodsFromMarket(com.offworld.model.StationInfo station,
-                                          java.util.Set<String> goodsAlreadyBuying) {
+                                          java.util.Set<String> goodsAlreadyBuying,
+                                          java.util.Set<String> goodsAlreadySelling) {
         // We only buy if we have room in orbit
         if (station.freeSpace() < MIN_STOCK_BUFFER * 2) {
             log.debug("[BUY] Station pleine ({}/{} u), skip rachats", station.totalStored(), station.maxStorage());
@@ -176,6 +181,8 @@ public class TradingStrategy {
             long defaultPrice = entry.getValue();
 
             if (goodsAlreadyBuying.contains(good)) continue;
+            // Avoid cross-side self matching for the same good.
+            if (goodsAlreadySelling.contains(good)) continue;
 
             // ── Niveau 1 : prix SSE disponible ────────────────────────────
             Long ssePrice = state.getPrice(good);
