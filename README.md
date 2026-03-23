@@ -106,6 +106,44 @@ Frontend default: `http://localhost:5173`
 - different strategy intervals help avoid all bots acting at the exact same moment
 - the frontend can switch between bots by changing the connection credentials
 
+## UI Preview
+
+Main dashboard:
+
+![Dashboard](images/README/dashboard.png)
+
+Galaxy tactical view:
+
+![Galaxy Tactical View](images/README/galaxy_view.png)
+
+Profile and live status:
+
+![Profile](images/README/profile.png)
+
+Inventory panel:
+
+![Inventory](images/README/inventory.png)
+
+Orders panel:
+
+![Orders](images/README/orders.png)
+
+Market panel:
+
+![Market](images/README/market.png)
+
+Fleet panel:
+
+![Fleet](images/README/fleet.png)
+
+Build panel:
+
+![Build](images/README/build.png)
+
+Ranking panel:
+
+![Ranking](images/README/ranking.png)
+
 ## Build and tests
 
 ```bash

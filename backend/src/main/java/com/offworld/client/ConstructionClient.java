@@ -23,7 +23,7 @@ public class ConstructionClient {
 
     public Flux<ConstructionProject> getMyProjects() {
         return webClient.get()
-                .uri("/construction")
+                .uri("/projects")
                 .retrieve()
                 .bodyToFlux(ConstructionProject.class)
                 .timeout(Duration.ofSeconds(10));
@@ -31,7 +31,7 @@ public class ConstructionClient {
 
     public Mono<ConstructionProject> getProject(String projectId) {
         return webClient.get()
-                .uri("/construction/{id}", projectId)
+                .uri("/projects/{id}", projectId)
                 .retrieve()
                 .bodyToMono(ConstructionProject.class)
                 .timeout(Duration.ofSeconds(10));
@@ -41,8 +41,8 @@ public class ConstructionClient {
     public Mono<ConstructionProject> upgradeDockingBays(String planetId) {
         log.info("Upgrading docking bays on {}", planetId);
         return webClient.post()
-                .uri("/construction/upgrade-station")
-                .bodyValue(Map.of("planet_id", planetId, "upgrade_type", "docking_bays"))
+                .uri("/projects")
+                .bodyValue(Map.of("project_type", "upgrade_docking_bays", "planet_id", planetId))
                 .retrieve()
                 .bodyToMono(ConstructionProject.class)
                 .timeout(Duration.ofSeconds(10));
@@ -52,8 +52,8 @@ public class ConstructionClient {
     public Mono<ConstructionProject> upgradeStorage(String planetId) {
         log.info("Upgrading storage on {}", planetId);
         return webClient.post()
-                .uri("/construction/upgrade-station")
-                .bodyValue(Map.of("planet_id", planetId, "upgrade_type", "storage"))
+                .uri("/projects")
+                .bodyValue(Map.of("project_type", "upgrade_storage", "planet_id", planetId))
                 .retrieve()
                 .bodyToMono(ConstructionProject.class)
                 .timeout(Duration.ofSeconds(10));
@@ -63,8 +63,8 @@ public class ConstructionClient {
     public Mono<ConstructionProject> upgradeElevator(String planetId) {
         log.info("Upgrading elevator on {}", planetId);
         return webClient.post()
-                .uri("/construction/upgrade-elevator")
-                .bodyValue(Map.of("planet_id", planetId))
+                .uri("/projects")
+                .bodyValue(Map.of("project_type", "upgrade_elevator_cabins", "planet_id", planetId))
                 .retrieve()
                 .bodyToMono(ConstructionProject.class)
                 .timeout(Duration.ofSeconds(10));
@@ -74,8 +74,9 @@ public class ConstructionClient {
     public Mono<ConstructionProject> installStation(String sourcePlanetId, String targetPlanetId, String stationName) {
         log.info("Installing station on {} from {}", targetPlanetId, sourcePlanetId);
         return webClient.post()
-                .uri("/construction/install-station")
+            .uri("/projects")
                 .bodyValue(Map.of(
+                "project_type", "install_station",
                         "source_planet_id", sourcePlanetId,
                         "target_planet_id", targetPlanetId,
                         "station_name", stationName

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 
 const goodsWithIcons = ["food", "water", "iron_ore", "copper_ore", "silicon"];
@@ -51,6 +51,7 @@ function App() {
   const [connecting, setConnecting] = useState(false);
   const [activeHudView, setActiveHudView] = useState("inventory");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
+  const [showShipHistory, setShowShipHistory] = useState(false);
 
   // Additional health checks
   const [botBackendOk, setBotBackendOk] = useState(false);
@@ -59,6 +60,7 @@ function App() {
   const [dataFreshness, setDataFreshness] = useState(0); // seconds ago
   const [myRank, setMyRank] = useState(null);
   const [prevRank, setPrevRank] = useState(null);
+  const [clockMs, setClockMs] = useState(Date.now());
 
   const eventSourceRef = useRef(null);
   const loopsRef = useRef([]);
@@ -111,6 +113,12 @@ function App() {
         clearTimeout(errorTimeoutRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    // Faster clock updates keep route interpolation visually smooth.
+    const timer = setInterval(() => setClockMs(Date.now()), 80);
+    return () => clearInterval(timer);
   }, []);
 
   // Monitor health checks
@@ -191,6 +199,16 @@ function App() {
       .filter((t) => readField(t, "buyer_id", "buyerId") === config.playerId || readField(t, "seller_id", "sellerId") === config.playerId)
       .slice(0, 10);
   }, [recentTrades, config.playerId]);
+
+  const activeShips = useMemo(
+    () => ships.filter((ship) => String(readField(ship, "status", "state") || "").toLowerCase() !== "complete"),
+    [ships]
+  );
+
+  const completedShips = useMemo(
+    () => ships.filter((ship) => String(readField(ship, "status", "state") || "").toLowerCase() === "complete"),
+    [ships]
+  );
 
   const myProfit = useMemo(() => {
     const me = leaderboard.find((p) => {
@@ -321,6 +339,106 @@ function App() {
     return null;
   }, [selectedPlanetId, systems]);
 
+  const activeShipRoutes = useMemo(() => {
+    return activeShips
+      .map((ship) => {
+        const originId = readField(ship, "origin_planet_id", "originPlanetId");
+        const destinationId = readField(ship, "destination_planet_id", "destinationPlanetId");
+        const origin = planetCoords.get(originId);
+        const destination = planetCoords.get(destinationId);
+        if (!origin || !destination) {
+          return null;
+        }
+
+        const shipId = String(readField(ship, "id", "ship_id", "shipId") || `${originId}-${destinationId}`);
+        const createdAt = Number(readField(ship, "created_at", "createdAt") || 0);
+        const eta = Number(readField(ship, "estimated_arrival_at", "estimatedArrivalAt", "arrival_at", "arrivalAt") || 0);
+
+        let progress;
+        if (createdAt > 0 && eta > createdAt) {
+          progress = clamp((clockMs - createdAt) / (eta - createdAt), 0, 1);
+        } else {
+          const phase = ((clockMs / 1000) + (hash(shipId) % 17)) % 18;
+          progress = clamp(phase / 18, 0, 1);
+        }
+
+        return {
+          id: shipId,
+          owner: readField(ship, "owner_id", "ownerId"),
+          status: String(readField(ship, "status", "state") || "unknown").toLowerCase(),
+          from: origin,
+          to: destination,
+          x: origin.x + (destination.x - origin.x) * progress,
+          y: origin.y + (destination.y - origin.y) * progress,
+          // ship.png is drawn facing up, so offset heading by +90deg from x-axis angle.
+          angleDeg: ((Math.atan2(destination.y - origin.y, destination.x - origin.x) * 180) / Math.PI) + 90
+        };
+      })
+      .filter(Boolean);
+  }, [activeShips, planetCoords, clockMs]);
+
+  const planetActivity = useMemo(() => {
+    const activity = new Map();
+
+    const ensure = (planetId) => {
+      if (!planetId) return null;
+      if (!activity.has(planetId)) {
+        activity.set(planetId, {
+          construction: 0,
+          ships: 0,
+          building: 0,
+          inTransit: 0,
+          shipComplete: 0
+        });
+      }
+      return activity.get(planetId);
+    };
+
+    for (const project of constructionProjects) {
+      const source = readField(project, "source_planet_id", "sourcePlanetId");
+      const target = readField(project, "target_planet_id", "targetPlanetId");
+      const status = String(readField(project, "status") || "").toLowerCase();
+
+      const sourceEntry = ensure(source);
+      if (sourceEntry) {
+        sourceEntry.construction += 1;
+        if (status === "building") sourceEntry.building += 1;
+        if (status === "in_transit") sourceEntry.inTransit += 1;
+      }
+
+      if (target && target !== source) {
+        const targetEntry = ensure(target);
+        if (targetEntry) {
+          targetEntry.construction += 1;
+          if (status === "building") targetEntry.building += 1;
+          if (status === "in_transit") targetEntry.inTransit += 1;
+        }
+      }
+    }
+
+    for (const ship of ships) {
+      const origin = readField(ship, "origin_planet_id", "originPlanetId");
+      const destination = readField(ship, "destination_planet_id", "destinationPlanetId");
+      const status = String(readField(ship, "status", "state") || "").toLowerCase();
+
+      const originEntry = ensure(origin);
+      if (originEntry) {
+        originEntry.ships += 1;
+        if (status === "complete") originEntry.shipComplete += 1;
+      }
+
+      if (destination && destination !== origin) {
+        const destinationEntry = ensure(destination);
+        if (destinationEntry) {
+          destinationEntry.ships += 1;
+          if (status === "complete") destinationEntry.shipComplete += 1;
+        }
+      }
+    }
+
+    return activity;
+  }, [constructionProjects, ships]);
+
   const visibleInventoryLocations = useMemo(() => {
     if (!selectedPlanetId) {
       return inventoryManifest.locations;
@@ -351,7 +469,7 @@ function App() {
   const selectedPlanetName = selectedInventoryLocation?.planetName || selectedPlanet?.name || "";
 
   function togglePlanetInventorySelection(planetId) {
-    setSelectedPlanetId((prev) => (prev === planetId ? null : planetId));
+    setSelectedPlanetId(planetId);
     setActiveHudView("inventory");
   }
 
@@ -772,11 +890,14 @@ function App() {
 
                     const station = planet.status?.station || planet.station;
                     const isPlayerStation = station?.owner_id === config.playerId;
+                    const activity = planetActivity.get(planet.id);
+                    const hasBuilding = Boolean(activity?.building);
+                    const hasInTransit = Boolean(activity?.inTransit);
 
                     return (
                       <div
                         key={`${system.name}-${planet.id}`}
-                        className={`planet-node ${planet.id === "Sol-6" ? "planet-sol-6" : ""} ${isPlayerStation ? "player" : ""} ${selectedPlanetId === planet.id ? "selected" : ""}`}
+                        className={`planet-node ${planet.id === "Sol-6" ? "planet-sol-6" : ""} ${isPlayerStation ? "player" : ""} ${selectedPlanetId === planet.id ? "selected" : ""} ${hasBuilding ? "building-active" : ""} ${hasInTransit ? "transit-active" : ""}`}
                         onClick={() => togglePlanetInventorySelection(planet.id)}
                         role="button"
                         tabIndex={0}
@@ -795,12 +916,54 @@ function App() {
                           src={getPlanetImage(planet)}
                           alt={planet.name}
                         />
+                        {hasBuilding && <span className="planet-build-pulse" />}
+                        {hasInTransit && <span className="planet-build-orbit" />}
                         {station && <img src="/images/station.png" alt="station" className="station-mark" />}
+                        {activity && (activity.construction > 0 || activity.ships > 0) && (
+                          <div className="planet-activity">
+                            {activity.construction > 0 && (
+                              <span className="planet-activity-pill construction" title={`Construction projects: ${activity.construction}`}>
+                                B {activity.construction}
+                              </span>
+                            )}
+                            {activity.ships > 0 && (
+                              <span className="planet-activity-pill ships" title={`Ships seen: ${activity.ships}`}>
+                                F {activity.ships}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         <div className="planet-label">{planet.name}</div>
                       </div>
                     );
                   })
                 )}
+              </div>
+              <div className="ship-route-layer">
+                {activeShipRoutes.map((route) => (
+                  <Fragment key={`route-${route.id}`}>
+                    <div
+                      className="live-route-ship"
+                      title={`${route.owner || "unknown"} | ${route.status}`}
+                      style={{
+                        left: `${route.x}%`,
+                        top: `${route.y}%`,
+                        transform: `translate(-50%, -50%) rotate(${route.angleDeg}deg)`
+                      }}
+                    >
+                      <span className="live-route-flame">
+                        <span className="live-route-flame-particle p1" />
+                        <span className="live-route-flame-particle p2" />
+                        <span className="live-route-flame-particle p3" />
+                      </span>
+                      <img src="/images/ship.png" alt="route ship" />
+                    </div>
+                  </Fragment>
+                ))}
+              </div>
+              <div className="planet-activity-legend" aria-label="Planet activity legend">
+                <span><strong>B:</strong> active build projects</span>
+                <span><strong>F:</strong> fleet traffic touching this planet</span>
               </div>
               <div className="trade-layer" ref={tradeLayerRef} />
             </div>
@@ -855,9 +1018,14 @@ function App() {
                 <div className="inventory-controls">
                   <span>
                     {selectedPlanetId
-                      ? `Selected: ${selectedPlanetName} (click it again on map to clear)`
+                      ? `Selected: ${selectedPlanetName}`
                       : "Selected: all planets (click a planet on map to focus)"}
                   </span>
+                  {selectedPlanetId && (
+                    <button type="button" className="inventory-clear-filter" onClick={() => setSelectedPlanetId(null)}>
+                      Show all planets
+                    </button>
+                  )}
                 </div>
 
                 <div className="inventory-totals">
@@ -967,13 +1135,32 @@ function App() {
             {activeHudView === "fleet" && (
               <section className="side-section hud-split">
                 <div>
-                  <h2>Ships</h2>
+                  <h2>Ships (Active)</h2>
                   <ul className="mini-feed hud-list">
-                    {ships.slice(0, 12).map((ship) => (
+                    {activeShips.slice(0, 12).map((ship) => (
                       <li key={readField(ship, "id", "ship_id", "shipId")}>{readField(ship, "status", "state")} | {readField(ship, "origin_planet_id", "originPlanetId")} to {readField(ship, "destination_planet_id", "destinationPlanetId")}</li>
                     ))}
-                    {ships.length === 0 && <li>No active ships</li>}
+                    {activeShips.length === 0 && <li>No active ships</li>}
                   </ul>
+
+                  <button
+                    className="fleet-history-toggle"
+                    onClick={() => setShowShipHistory((v) => !v)}
+                    type="button"
+                  >
+                    {showShipHistory ? "Hide" : "Show"} history ({completedShips.length})
+                  </button>
+
+                  {showShipHistory && (
+                    <ul className="mini-feed hud-list fleet-history-list">
+                      {completedShips.slice(0, 24).map((ship) => (
+                        <li key={`history-${readField(ship, "id", "ship_id", "shipId")}`}>
+                          complete | {readField(ship, "origin_planet_id", "originPlanetId")} to {readField(ship, "destination_planet_id", "destinationPlanetId")}
+                        </li>
+                      ))}
+                      {completedShips.length === 0 && <li>No completed ships yet</li>}
+                    </ul>
+                  )}
                 </div>
 
                 <div>
@@ -995,7 +1182,7 @@ function App() {
                   <div className="construction-empty">
                     <p>No active construction projects.</p>
                     <p className="construction-hint">
-                      Bot backend must be running on port 8081 to show data here.
+                      Data is read from /bot via Vite proxy (default target: localhost:8081).
                     </p>
                   </div>
                 ) : (
