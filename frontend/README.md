@@ -55,3 +55,41 @@ flowchart LR
 - SSE for the trade stream
 - `setInterval` for public and private polling
 - React state to reflect changes on screen
+
+## Screenshots
+
+Dashboard overview:
+
+![Dashboard](../images/README/dashboard.png)
+
+Galaxy tactical map:
+
+![Galaxy Tactical View](../images/README/galaxy_view.png)
+
+Profile and status card:
+
+![Profile](../images/README/profile.png)
+
+Inventory view:
+
+![Inventory](../images/README/inventory.png)
+
+Orders view:
+
+![Orders](../images/README/orders.png)
+
+Market view:
+
+![Market](../images/README/market.png)
+
+Fleet view:
+
+![Fleet](../images/README/fleet.png)
+
+Build view:
+
+![Build](../images/README/build.png)
+
+Ranking view:
+
+![Ranking](../images/README/ranking.png)
