@@ -2,6 +2,14 @@
 
 Reactive Java client to automate trading on the Offworld Trading Manager server.
 
+## Team
+
+Project done by:
+
+- Abdellatif EL-MAHDAOUI
+- Alaa BOUGHAMMOURA
+- Betsaleel CLOVIS
+
 ## Reactive library chosen
 
 We chose **Project Reactor** via **Spring WebFlux**.
@@ -47,13 +55,51 @@ From `server/` :
 cargo run -- --seed seed.json
 ```
 
-### 2. Start the bot
+### 2. Start one bot
 
 From `backend/` :
 
 ```bash
 mvn spring-boot:run
 ```
+
+### 3. Start three bots together
+
+Run each command in its own terminal.
+
+Bot 1: `alpha-team`
+
+```bash
+cd /Users/elmah/Desktop/ING3/ReactiveProgramming/offworld-bot-client-test/backend
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8081 --offworld.server-url=http://localhost:3000 --offworld.player-id=alpha-team --offworld.api-key=alpha-secret-key-001 --offworld.webhook-url=http://localhost:8081/webhooks --offworld.strategy-interval-ms=8000"
+```
+
+Bot 2: `beta-corp`
+
+```bash
+cd /Users/elmah/Desktop/ING3/ReactiveProgramming/offworld-bot-client-test/backend
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8082 --offworld.server-url=http://localhost:3000 --offworld.player-id=beta-corp --offworld.api-key=beta-secret-key-002 --offworld.webhook-url=http://localhost:8082/webhooks --offworld.strategy-interval-ms=9000"
+```
+
+Bot 3: `gamma-guild`
+
+```bash
+cd /Users/elmah/Desktop/ING3/ReactiveProgramming/offworld-bot-client-test/backend
+mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=8083 --offworld.server-url=http://localhost:3000 --offworld.player-id=gamma-guild --offworld.api-key=gamma-secret-key-003 --offworld.webhook-url=http://localhost:8083/webhooks --offworld.strategy-interval-ms=10000"
+```
+
+Available seed players:
+
+- `alpha-team` / `alpha-secret-key-001`
+- `beta-corp` / `beta-secret-key-002`
+- `gamma-guild` / `gamma-secret-key-003`
+
+### 4. Notes for multi-bot mode
+
+- every bot must use a unique `server.port`
+- every bot must use the matching `player-id` and `api-key`
+- every bot must publish a matching `webhook-url`
+- using different strategy intervals reduces synchronized behavior and makes market activity more natural
 
 ## What the application does
 
@@ -99,9 +145,9 @@ Pattern used: **reactive Spring WebFlux handler** — `@PostMapping` returns a `
 
 ---
 
-#### 6. Ascenseur spatial (toutes les 60 secondes, thread dédié)
+#### 6. Space elevator polling (every 60 seconds, dedicated thread)
 
-L'API de l'ascenseur est synchrone côté serveur (délai artificiel ~2s). Elle est isolée dans un thread bloquant via `Schedulers.boundedElastic()` pour ne pas bloquer le thread réactif :
+The space elevator API is synchronous on the server side (artificial delay around 2 seconds). It is isolated in a blocking thread via `Schedulers.boundedElastic()` so it does not block the reactive thread:
 
 ```
 Flux.interval(Duration.ofSeconds(60))
@@ -109,17 +155,17 @@ Flux.interval(Duration.ofSeconds(60))
                        .subscribeOn(Schedulers.boundedElastic()))
 ```
 
-Pattern utilisé : **`Mono.fromCallable()` + `subscribeOn(boundedElastic)`** — isolation du code bloquant dans un pool de threads dédié, sans contaminer le scheduler NIO.
+Pattern used: **`Mono.fromCallable()` + `subscribeOn(boundedElastic)`** — blocking code is isolated in a dedicated thread pool without contaminating the NIO scheduler.
 
 ---
 
-### Résumé des patterns réactifs utilisés
+### Summary of reactive patterns used
 
 | Mode              | Pattern Reactor                          | Classe(s) concernée(s)              |
 |-------------------|------------------------------------------|--------------------------------------|
-| Init synchrone    | `Mono` chaîné par `.then()` + `.block()` | `OffworldApplication`, `GalaxyService` |
-| SSE temps réel    | `Flux<ServerSentEvent>` + `retryWhen`    | `MarketClient`, `MarketService`      |
+| Synchronous init  | chained `Mono` via `.then()` + `.block()` | `OffworldApplication`, `GalaxyService` |
+| Real-time SSE     | `Flux<ServerSentEvent>` + `retryWhen`    | `MarketClient`, `MarketService`      |
 | Polling ships     | `Flux.interval()` + `flatMap`            | `ShipService`                        |
-| Stratégie trading | `Flux.interval()` + `flatMap` + `Mono`   | `TradingStrategy`                    |
+| Trading strategy  | `Flux.interval()` + `flatMap` + `Mono`   | `TradingStrategy`                    |
 | Webhooks push     | `@PostMapping` → `Mono<ResponseEntity>`  | `WebhookController`                  |
-| Appel bloquant    | `Mono.fromCallable()` + `boundedElastic` | `ElevatorService`, `StationClient`   |
+| Blocking call     | `Mono.fromCallable()` + `boundedElastic` | `ElevatorService`, `StationClient`   |
