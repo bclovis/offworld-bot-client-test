@@ -93,6 +93,21 @@ body {
   border-color: var(--good);
 }
 
+.status-dot.connecting {
+  color: var(--amber);
+  border-color: var(--amber);
+  animation: pulse-connecting 0.8s infinite;
+}
+
+@keyframes pulse-connecting {
+  0%, 100% {
+    text-shadow: 0 0 8px rgba(255, 206, 82, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 12px rgba(255, 206, 82, 0.8);
+  }
+}
+
 .layout {
   display: block;
   padding: 0;
@@ -244,11 +259,12 @@ button:disabled {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  margin-bottom: 18px;
 }
 
 .badge {
-  border: 1px solid #90a6b5;
-  color: #c8d3dd;
+  border: 1px solid var(--danger);
+  color: var(--danger);
   padding: 4px 9px;
   border-radius: 999px;
   font-family: var(--font-data);
@@ -258,6 +274,88 @@ button:disabled {
 .badge.on {
   border-color: var(--good);
   color: var(--good);
+}
+
+.badge.retrying {
+  border-color: var(--amber);
+  color: var(--amber);
+  animation: pulse-retrying 1s infinite;
+}
+
+.badge.warning {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+@keyframes pulse-retrying {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.rank-display {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.rank-badge {
+  padding: 8px 16px;
+  border: 2px solid var(--good);
+  border-radius: 6px;
+  background: rgba(67, 245, 165, 0.1);
+  color: var(--good);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(67, 245, 165, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-badge.rank-up {
+  border-color: var(--good);
+  background: rgba(67, 245, 165, 0.15);
+  animation: rank-pulse-up 0.6s ease-out;
+}
+
+.rank-badge.rank-down {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 102, 112, 0.1);
+  animation: rank-pulse-down 0.6s ease-out;
+}
+
+.rank-change {
+  font-size: 14px;
+  margin-left: 4px;
+}
+
+@keyframes rank-pulse-up {
+  0% {
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(67, 245, 165, 0.8);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(67, 245, 165, 0.3);
+  }
+}
+
+@keyframes rank-pulse-down {
+  0% {
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(255, 102, 112, 0.8);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 10px rgba(255, 102, 112, 0.3);
+  }
 }
 
 .center-column {

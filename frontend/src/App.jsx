@@ -51,10 +51,22 @@ function App() {
   const [activeHudView, setActiveHudView] = useState("inventory");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
 
+  // Additional health checks
+  const [botBackendOk, setBotBackendOk] = useState(false);
+  const [serverLag, setServerLag] = useState(0);
+  const [marketActivity, setMarketActivity] = useState(false);
+  const [dataFreshness, setDataFreshness] = useState(0); // seconds ago
+  const [myRank, setMyRank] = useState(null);
+  const [prevRank, setPrevRank] = useState(null);
+
   const eventSourceRef = useRef(null);
   const loopsRef = useRef([]);
   const tradeLayerRef = useRef(null);
   const autoConnectRef = useRef(false);
+  const reconnectTimeoutRef = useRef(null);
+  const errorTimeoutRef = useRef(null);
+  const lastDataUpdateRef = useRef(Date.now());
+  const lastTradeTimeRef = useRef(Date.now());
 
   useEffect(() => {
     const saved = localStorage.getItem("offworld-ui-config");
@@ -85,8 +97,57 @@ function App() {
   useEffect(() => {
     return () => {
       teardown();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Monitor health checks
+  useEffect(() => {
+    const healthCheckInterval = setInterval(async () => {
+      // Check bot backend
+      try {
+        const botStart = Date.now();
+        const botRes = await fetch("/bot/construction");
+        const botLag = Date.now() - botStart;
+        setBotBackendOk(botRes.ok);
+      } catch {
+        setBotBackendOk(false);
+      }
+
+      // Update data freshness
+      const timeSinceUpdate = Math.round((Date.now() - lastDataUpdateRef.current) / 1000);
+      setDataFreshness(timeSinceUpdate);
+
+      // Check market activity (trades in last 30 seconds)
+      const now = Date.now();
+      const recentTradeActivity = (now - lastTradeTimeRef.current) < 30000;
+      setMarketActivity(recentTradeActivity);
+    }, 2000);
+
+    return () => clearInterval(healthCheckInterval);
+  }, []);
+
+  // Track server lag on each API call
+  const measureServerLag = async (runtimeConfig, path) => {
+    const start = Date.now();
+    const headers = { "Content-Type": "application/json" };
+    if (runtimeConfig.apiKey) {
+      headers.Authorization = `Bearer ${runtimeConfig.apiKey}`;
+    }
+    const res = await fetch(`${runtimeConfig.serverUrl}${path}`, { headers });
+    const lag = Date.now() - start;
+    setServerLag(lag);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} ${res.statusText} ${body}`.trim());
+    }
+    return res.json();
+  };
 
   const planetCoords = useMemo(() => {
     const map = new Map();
@@ -290,20 +351,42 @@ function App() {
     localStorage.setItem("offworld-ui-config", JSON.stringify(normalizedConfig));
 
     try {
+      setSyncOk(false);
+      setPollingOk(false);
+      setSseOk(false);
+      
       await refreshPublicData(normalizedConfig);
+      setSyncOk(true);
+      
       await refreshPrivateData(normalizedConfig);
+      setPollingOk(true);
+      
       startSse(normalizedConfig);
       startPolling(normalizedConfig);
       setConnected(true);
+      setError(""); // Clear any previous errors
     } catch (err) {
       setConnected(false);
-      setError(`Connection failed: ${err.message}`);
+      const errorMessage = `Connection failed: ${err.message}`;
+      setError(errorMessage);
+      
+      // Auto-retry connection after 5 seconds if it was a silent auto-connect
+      if (silent) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connect(true);
+        }, 5000);
+      }
     } finally {
       setConnecting(false);
     }
   }
 
   function teardown() {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
     for (const id of loopsRef.current) {
       clearInterval(id);
     }
@@ -321,19 +404,41 @@ function App() {
   function startPolling(runtimeConfig) {
     const publicLoop = setInterval(() => {
       refreshPublicData(runtimeConfig)
-        .then(() => setSyncOk(true))
+        .then(() => {
+          setSyncOk(true);
+          // Clear error if polling succeeds
+          setError((prev) => prev?.includes("Public refresh failed") ? "" : prev);
+        })
         .catch((err) => {
           setSyncOk(false);
           setError(`Public refresh failed: ${err.message}`);
+          // Auto-clear error after 8 seconds
+          if (errorTimeoutRef.current) {
+            clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = setTimeout(() => {
+            setError((prev) => prev?.includes("Public refresh failed") ? "" : prev);
+          }, 8000);
         });
     }, 10000);
 
     const privateLoop = setInterval(() => {
       refreshPrivateData(runtimeConfig)
-        .then(() => setPollingOk(true))
+        .then(() => {
+          setPollingOk(true);
+          // Clear error if polling succeeds
+          setError((prev) => prev?.includes("Private refresh failed") ? "" : prev);
+        })
         .catch((err) => {
           setPollingOk(false);
           setError(`Private refresh failed: ${err.message}`);
+          // Auto-clear error after 8 seconds
+          if (errorTimeoutRef.current) {
+            clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = setTimeout(() => {
+            setError((prev) => prev?.includes("Private refresh failed") ? "" : prev);
+          }, 8000);
         });
     }, 5000);
 
@@ -365,6 +470,7 @@ function App() {
         }
 
         setSseOk(true);
+        setError((prev) => prev?.includes("SSE failed") ? "" : prev); // Clear SSE error if connection succeeds
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -397,6 +503,7 @@ function App() {
                 .slice(0, 100));
               animateTrade(trade);
               setSseOk(true);
+              lastTradeTimeRef.current = Date.now(); // Track market activity
             } catch {
               // ignore malformed events
             }
@@ -405,6 +512,10 @@ function App() {
 
         if (!controller.signal.aborted) {
           setSseOk(false);
+          // Attempt to reconnect after 3 seconds
+          reconnectTimeoutRef.current = setTimeout(() => {
+            startSse(runtimeConfig);
+          }, 3000);
         }
       })
       .catch((err) => {
@@ -414,6 +525,19 @@ function App() {
 
         setSseOk(false);
         setError(`SSE failed: ${err.message}`);
+        
+        // Auto-clear error after 8 seconds
+        if (errorTimeoutRef.current) {
+          clearTimeout(errorTimeoutRef.current);
+        }
+        errorTimeoutRef.current = setTimeout(() => {
+          setError((prev) => prev?.includes("SSE failed") ? "" : prev);
+        }, 8000);
+        
+        // Attempt to reconnect after 3 seconds
+        reconnectTimeoutRef.current = setTimeout(() => {
+          startSse(runtimeConfig);
+        }, 3000);
       });
   }
 
@@ -428,6 +552,16 @@ function App() {
     setLeaderboard(leaderboardData);
     setPrices(pricesData);
     setSyncOk(true);
+    lastDataUpdateRef.current = Date.now();
+
+    // Track rank changes
+    const playerRank = leaderboardData?.findIndex((p) => p.name === config.playerId) + 1;
+    if (playerRank > 0) {
+      if (myRank !== playerRank) {
+        setPrevRank(myRank);
+        setMyRank(playerRank);
+      }
+    }
   }
 
   async function refreshPrivateData(runtimeConfig) {
@@ -514,7 +648,9 @@ function App() {
 
       <header className="topbar">
         <h1>offworld-bot-client-test</h1>
-        <div className={`status-dot ${connected ? "on" : "off"}`}>{connected ? "ONLINE" : "OFFLINE"}</div>
+        <div className={`status-dot ${pollingOk || syncOk ? "on" : connecting ? "connecting" : "off"}`}>
+          {pollingOk || syncOk ? "ONLINE" : connecting ? "CONNECTING..." : "OFFLINE"}
+        </div>
       </header>
 
       <main className="layout">
@@ -552,10 +688,55 @@ function App() {
 
           <h2>Live Checks</h2>
           <div className="checks">
-            <span className={`badge ${syncOk ? "on" : ""}`}>Sync APIs</span>
-            <span className={`badge ${pollingOk ? "on" : ""}`}>Polling</span>
-            <span className={`badge ${sseOk ? "on" : ""}`}>SSE</span>
+            <span className={`badge ${syncOk ? "on" : error?.includes("Public") ? "retrying" : ""}`}>
+              Sync APIs
+            </span>
+            <span className={`badge ${pollingOk ? "on" : error?.includes("Private") ? "retrying" : ""}`}>
+              Polling
+            </span>
+            <span className={`badge ${sseOk ? "on" : error?.includes("SSE") ? "retrying" : ""}`}>
+              SSE
+            </span>
           </div>
+
+          <h2>System Health</h2>
+          <div className="checks">
+            <span className={`badge ${botBackendOk ? "on" : ""}`}>
+              Bot Backend
+            </span>
+            <span className={`badge ${marketActivity ? "on" : ""}`}>
+              Market Active
+            </span>
+          </div>
+
+          <h2>Data Status</h2>
+          <div className="checks">
+            <span className={`badge ${dataFreshness < 10 ? "on" : dataFreshness < 30 ? "warning" : "off"}`}>
+              Fresh: {dataFreshness}s
+            </span>
+            <span className={`badge ${orders.length > 0 ? "on" : ""}`}>
+              Orders: {orders.length}
+            </span>
+            <span className={`badge ${ships.length > 0 ? "on" : ""}`}>
+              Ships: {ships.length}
+            </span>
+          </div>
+
+          {myRank && (
+            <h2>Your Rank</h2>
+          )}
+          {myRank && (
+            <div className="rank-display">
+              <div className={`rank-badge ${prevRank && prevRank > myRank ? "rank-up" : prevRank && prevRank < myRank ? "rank-down" : ""}`}>
+                <strong>#{myRank}</strong>
+                {prevRank && prevRank !== myRank && (
+                  <span className="rank-change">
+                    {prevRank > myRank ? "↑" : "↓"} {Math.abs(prevRank - myRank)}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </aside>
 
         <section className="center-column">
