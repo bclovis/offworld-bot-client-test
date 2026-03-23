@@ -44,6 +44,7 @@ function App() {
   const [constructionProjects, setConstructionProjects] = useState([]);
   const [creditDelta, setCreditDelta] = useState(null);
   const prevCreditsRef = useRef(null);
+  const initialCreditsRef = useRef(null);
   const [syncOk, setSyncOk] = useState(false);
   const [pollingOk, setPollingOk] = useState(false);
   const [sseOk, setSseOk] = useState(false);
@@ -51,10 +52,22 @@ function App() {
   const [activeHudView, setActiveHudView] = useState("inventory");
   const [selectedPlanetId, setSelectedPlanetId] = useState(null);
 
+  // Additional health checks
+  const [botBackendOk, setBotBackendOk] = useState(false);
+  const [serverLag, setServerLag] = useState(0);
+  const [marketActivity, setMarketActivity] = useState(false);
+  const [dataFreshness, setDataFreshness] = useState(0); // seconds ago
+  const [myRank, setMyRank] = useState(null);
+  const [prevRank, setPrevRank] = useState(null);
+
   const eventSourceRef = useRef(null);
   const loopsRef = useRef([]);
   const tradeLayerRef = useRef(null);
   const autoConnectRef = useRef(false);
+  const reconnectTimeoutRef = useRef(null);
+  const errorTimeoutRef = useRef(null);
+  const lastDataUpdateRef = useRef(Date.now());
+  const lastTradeTimeRef = useRef(Date.now());
 
   useEffect(() => {
     const saved = localStorage.getItem("offworld-ui-config");
@@ -83,10 +96,65 @@ function App() {
   }, [config.playerId, config.apiKey, config.serverUrl]);
 
   useEffect(() => {
+    // Reset per-player credit baseline when switching identity.
+    initialCreditsRef.current = null;
+    prevCreditsRef.current = null;
+  }, [config.playerId]);
+
+  useEffect(() => {
     return () => {
       teardown();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Monitor health checks
+  useEffect(() => {
+    const healthCheckInterval = setInterval(async () => {
+      // Check bot backend
+      try {
+        const botStart = Date.now();
+        const botRes = await fetch("/bot/construction");
+        const botLag = Date.now() - botStart;
+        setBotBackendOk(botRes.ok);
+      } catch {
+        setBotBackendOk(false);
+      }
+
+      // Update data freshness
+      const timeSinceUpdate = Math.round((Date.now() - lastDataUpdateRef.current) / 1000);
+      setDataFreshness(timeSinceUpdate);
+
+      // Check market activity (trades in last 30 seconds)
+      const now = Date.now();
+      const recentTradeActivity = (now - lastTradeTimeRef.current) < 30000;
+      setMarketActivity(recentTradeActivity);
+    }, 2000);
+
+    return () => clearInterval(healthCheckInterval);
+  }, []);
+
+  // Track server lag on each API call
+  const measureServerLag = async (runtimeConfig, path) => {
+    const start = Date.now();
+    const headers = { "Content-Type": "application/json" };
+    if (runtimeConfig.apiKey) {
+      headers.Authorization = `Bearer ${runtimeConfig.apiKey}`;
+    }
+    const res = await fetch(`${runtimeConfig.serverUrl}${path}`, { headers });
+    const lag = Date.now() - start;
+    setServerLag(lag);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`${res.status} ${res.statusText} ${body}`.trim());
+    }
+    return res.json();
+  };
 
   const planetCoords = useMemo(() => {
     const map = new Map();
@@ -125,9 +193,23 @@ function App() {
   }, [recentTrades, config.playerId]);
 
   const myProfit = useMemo(() => {
-    const me = leaderboard.find((p) => readField(p, "player_id", "playerId") === config.playerId);
-    return readField(me, "profit", "total_profit") ?? 0;
-  }, [leaderboard, config.playerId]);
+    const me = leaderboard.find((p) => {
+      const playerId = readField(p, "player_id", "playerId", "id");
+      const playerName = readField(p, "player_name", "playerName", "name");
+      return playerId === config.playerId || playerName === profile?.name;
+    });
+
+    const leaderboardProfit = readField(me, "profit", "total_profit");
+    if (typeof leaderboardProfit === "number") {
+      return leaderboardProfit;
+    }
+
+    if (typeof profile?.credits === "number" && typeof initialCreditsRef.current === "number") {
+      return profile.credits - initialCreditsRef.current;
+    }
+
+    return 0;
+  }, [leaderboard, config.playerId, profile?.name, profile?.credits]);
 
   const planetInventories = useMemo(() => {
     return systems.flatMap((system) =>
@@ -290,20 +372,42 @@ function App() {
     localStorage.setItem("offworld-ui-config", JSON.stringify(normalizedConfig));
 
     try {
+      setSyncOk(false);
+      setPollingOk(false);
+      setSseOk(false);
+      
       await refreshPublicData(normalizedConfig);
+      setSyncOk(true);
+      
       await refreshPrivateData(normalizedConfig);
+      setPollingOk(true);
+      
       startSse(normalizedConfig);
       startPolling(normalizedConfig);
       setConnected(true);
+      setError(""); // Clear any previous errors
     } catch (err) {
       setConnected(false);
-      setError(`Connection failed: ${err.message}`);
+      const errorMessage = `Connection failed: ${err.message}`;
+      setError(errorMessage);
+      
+      // Auto-retry connection after 5 seconds if it was a silent auto-connect
+      if (silent) {
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connect(true);
+        }, 5000);
+      }
     } finally {
       setConnecting(false);
     }
   }
 
   function teardown() {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
     for (const id of loopsRef.current) {
       clearInterval(id);
     }
@@ -321,19 +425,41 @@ function App() {
   function startPolling(runtimeConfig) {
     const publicLoop = setInterval(() => {
       refreshPublicData(runtimeConfig)
-        .then(() => setSyncOk(true))
+        .then(() => {
+          setSyncOk(true);
+          // Clear error if polling succeeds
+          setError((prev) => prev?.includes("Public refresh failed") ? "" : prev);
+        })
         .catch((err) => {
           setSyncOk(false);
           setError(`Public refresh failed: ${err.message}`);
+          // Auto-clear error after 8 seconds
+          if (errorTimeoutRef.current) {
+            clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = setTimeout(() => {
+            setError((prev) => prev?.includes("Public refresh failed") ? "" : prev);
+          }, 8000);
         });
     }, 10000);
 
     const privateLoop = setInterval(() => {
       refreshPrivateData(runtimeConfig)
-        .then(() => setPollingOk(true))
+        .then(() => {
+          setPollingOk(true);
+          // Clear error if polling succeeds
+          setError((prev) => prev?.includes("Private refresh failed") ? "" : prev);
+        })
         .catch((err) => {
           setPollingOk(false);
           setError(`Private refresh failed: ${err.message}`);
+          // Auto-clear error after 8 seconds
+          if (errorTimeoutRef.current) {
+            clearTimeout(errorTimeoutRef.current);
+          }
+          errorTimeoutRef.current = setTimeout(() => {
+            setError((prev) => prev?.includes("Private refresh failed") ? "" : prev);
+          }, 8000);
         });
     }, 5000);
 
@@ -365,6 +491,7 @@ function App() {
         }
 
         setSseOk(true);
+        setError((prev) => prev?.includes("SSE failed") ? "" : prev); // Clear SSE error if connection succeeds
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -397,6 +524,7 @@ function App() {
                 .slice(0, 100));
               animateTrade(trade);
               setSseOk(true);
+              lastTradeTimeRef.current = Date.now(); // Track market activity
             } catch {
               // ignore malformed events
             }
@@ -405,6 +533,10 @@ function App() {
 
         if (!controller.signal.aborted) {
           setSseOk(false);
+          // Attempt to reconnect after 3 seconds
+          reconnectTimeoutRef.current = setTimeout(() => {
+            startSse(runtimeConfig);
+          }, 3000);
         }
       })
       .catch((err) => {
@@ -414,6 +546,19 @@ function App() {
 
         setSseOk(false);
         setError(`SSE failed: ${err.message}`);
+        
+        // Auto-clear error after 8 seconds
+        if (errorTimeoutRef.current) {
+          clearTimeout(errorTimeoutRef.current);
+        }
+        errorTimeoutRef.current = setTimeout(() => {
+          setError((prev) => prev?.includes("SSE failed") ? "" : prev);
+        }, 8000);
+        
+        // Attempt to reconnect after 3 seconds
+        reconnectTimeoutRef.current = setTimeout(() => {
+          startSse(runtimeConfig);
+        }, 3000);
       });
   }
 
@@ -428,6 +573,20 @@ function App() {
     setLeaderboard(leaderboardData);
     setPrices(pricesData);
     setSyncOk(true);
+    lastDataUpdateRef.current = Date.now();
+
+    // Track rank changes
+    const playerRank = (leaderboardData?.findIndex((p) => {
+      const playerId = readField(p, "player_id", "playerId", "id");
+      const playerName = readField(p, "player_name", "playerName", "name");
+      return playerId === config.playerId || playerName === profile?.name;
+    }) ?? -1) + 1;
+    if (playerRank > 0) {
+      if (myRank !== playerRank) {
+        setPrevRank(myRank);
+        setMyRank(playerRank);
+      }
+    }
   }
 
   async function refreshPrivateData(runtimeConfig) {
@@ -446,6 +605,9 @@ function App() {
 
     // Track credit changes
     const newCredits = profileData?.credits;
+    if (typeof newCredits === "number" && initialCreditsRef.current === null) {
+      initialCreditsRef.current = newCredits;
+    }
     if (typeof newCredits === "number" && prevCreditsRef.current !== null && newCredits !== prevCreditsRef.current) {
       const diff = newCredits - prevCreditsRef.current;
       setCreditDelta(diff);
@@ -514,7 +676,9 @@ function App() {
 
       <header className="topbar">
         <h1>offworld-bot-client-test</h1>
-        <div className={`status-dot ${connected ? "on" : "off"}`}>{connected ? "ONLINE" : "OFFLINE"}</div>
+        <div className={`status-dot ${pollingOk || syncOk ? "on" : connecting ? "connecting" : "off"}`}>
+          {pollingOk || syncOk ? "ONLINE" : connecting ? "CONNECTING..." : "OFFLINE"}
+        </div>
       </header>
 
       <main className="layout">
@@ -537,9 +701,15 @@ function App() {
 
           <h2>Profile</h2>
           <div className="profile-card">
+            {myRank && (
+              <div className="profile-rank">
+                <strong>#{myRank}</strong>
+              </div>
+            )}
             <img src="/images/npc.png" alt="npc" />
-            <div>
+            <div className="profile-meta">
               <p>{profile?.name || "Unknown Pilot"}</p>
+              <p>ID: {profile?.id || config.playerId || "--"}</p>
               <p className={creditDelta !== null ? (creditDelta >= 0 ? "credit-up" : "credit-down") : ""}>
                 Credits: {formatNumber(profile?.credits)}
                 {creditDelta !== null && (
@@ -552,10 +722,40 @@ function App() {
 
           <h2>Live Checks</h2>
           <div className="checks">
-            <span className={`badge ${syncOk ? "on" : ""}`}>Sync APIs</span>
-            <span className={`badge ${pollingOk ? "on" : ""}`}>Polling</span>
-            <span className={`badge ${sseOk ? "on" : ""}`}>SSE</span>
+            <span className={`badge ${syncOk ? "on" : error?.includes("Public") ? "retrying" : ""}`}>
+              Sync APIs
+            </span>
+            <span className={`badge ${pollingOk ? "on" : error?.includes("Private") ? "retrying" : ""}`}>
+              Polling
+            </span>
+            <span className={`badge ${sseOk ? "on" : error?.includes("SSE") ? "retrying" : ""}`}>
+              SSE
+            </span>
           </div>
+
+          <h2>System Health</h2>
+          <div className="checks">
+            <span className={`badge ${botBackendOk ? "on" : ""}`}>
+              Bot Backend
+            </span>
+            <span className={`badge ${marketActivity ? "on" : ""}`}>
+              Market Active
+            </span>
+          </div>
+
+          <h2>Data Status</h2>
+          <div className="checks">
+            <span className={`badge ${dataFreshness < 10 ? "on" : dataFreshness < 30 ? "warning" : "off"}`}>
+              Last update: {dataFreshness}s ago
+            </span>
+            <span className={`badge ${orders.length > 0 ? "on" : ""}`}>
+              Orders: {orders.length}
+            </span>
+            <span className={`badge ${ships.length > 0 ? "on" : ""}`}>
+              Ships: {ships.length}
+            </span>
+          </div>
+
         </aside>
 
         <section className="center-column">
@@ -609,14 +809,18 @@ function App() {
           <section className="panel feed-panel">
             <div className="panel-title">Trade Feed</div>
             <ul className="feed">
-              {recentTrades.slice(0, 20).map((trade) => (
-                <li key={getTradeKey(trade)} className="feed-item">
-                  <span className="feed-time">{formatTradeTime(trade)}</span>
-                  <span className="feed-text">
-                    {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
-                  </span>
-                </li>
-              ))}
+              {recentTrades.slice(0, 20).map((trade) => {
+                const origin = getTradeOriginTag(trade, config.playerId);
+                return (
+                  <li key={getTradeKey(trade)} className="feed-item">
+                    <span className="feed-time">{formatTradeTime(trade)}</span>
+                    <span className="feed-text">
+                      {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
+                    </span>
+                    <span className={`trade-origin-tag ${origin.isMine ? "mine" : "other"}`}>{origin.label}</span>
+                  </li>
+                );
+              })}
               {recentTrades.length === 0 && <li>No trade events yet</li>}
             </ul>
           </section>
@@ -898,6 +1102,23 @@ function getTradeKey(trade) {
     readField(trade, "id", "trade_id", "tradeId")
       ?? `${readField(trade, "good_name", "goodName")}-${readField(trade, "buyer_id", "buyerId")}-${trade.receivedAtMs}`
   );
+}
+
+function getTradeOriginTag(trade, myPlayerId) {
+  const sellerId = readField(trade, "seller_id", "sellerId");
+  const buyerId = readField(trade, "buyer_id", "buyerId");
+  const isMine = sellerId === myPlayerId || buyerId === myPlayerId;
+
+  if (isMine) {
+    return { label: "bot-client", isMine: true };
+  }
+
+  const otherId = sellerId || buyerId;
+  if (otherId) {
+    return { label: `other:${otherId}`, isMine: false };
+  }
+
+  return { label: "other", isMine: false };
 }
 
 function hash(input) {
