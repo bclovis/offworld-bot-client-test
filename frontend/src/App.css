@@ -129,6 +129,7 @@ body {
   bottom: 16px;
   width: 290px;
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 10;
 }
 
@@ -211,6 +212,30 @@ button:disabled {
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
+  position: relative;
+}
+
+.profile-meta {
+  padding-right: 0;
+}
+
+.profile-rank {
+  position: absolute;
+  top: -12px;
+  right: 2px;
+  padding: 0;
+  font-size: 20px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--good);
+  text-shadow: 0 0 8px rgba(67, 245, 165, 0.55);
+  transform: rotate(7deg);
+  z-index: 2;
+}
+
+.profile-rank .rank-change {
+  font-size: 12px;
 }
 
 .profile-card img {
@@ -503,6 +528,28 @@ button:disabled {
 
 .feed-text {
   flex: 1 1 auto;
+}
+
+.trade-origin-tag {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--font-data);
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(173, 233, 255, 0.35);
+  color: #b8dbec;
+  background: rgba(4, 12, 22, 0.55);
+}
+
+.trade-origin-tag.mine {
+  border-color: rgba(67, 245, 165, 0.45);
+  color: var(--good);
+}
+
+.trade-origin-tag.other {
+  border-color: rgba(255, 206, 82, 0.45);
+  color: var(--amber);
 }
 
 .prices-grid {

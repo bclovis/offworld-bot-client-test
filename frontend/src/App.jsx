@@ -44,6 +44,7 @@ function App() {
   const [constructionProjects, setConstructionProjects] = useState([]);
   const [creditDelta, setCreditDelta] = useState(null);
   const prevCreditsRef = useRef(null);
+  const initialCreditsRef = useRef(null);
   const [syncOk, setSyncOk] = useState(false);
   const [pollingOk, setPollingOk] = useState(false);
   const [sseOk, setSseOk] = useState(false);
@@ -93,6 +94,12 @@ function App() {
     autoConnectRef.current = true;
     connect(true);
   }, [config.playerId, config.apiKey, config.serverUrl]);
+
+  useEffect(() => {
+    // Reset per-player credit baseline when switching identity.
+    initialCreditsRef.current = null;
+    prevCreditsRef.current = null;
+  }, [config.playerId]);
 
   useEffect(() => {
     return () => {
@@ -186,9 +193,23 @@ function App() {
   }, [recentTrades, config.playerId]);
 
   const myProfit = useMemo(() => {
-    const me = leaderboard.find((p) => readField(p, "player_id", "playerId") === config.playerId);
-    return readField(me, "profit", "total_profit") ?? 0;
-  }, [leaderboard, config.playerId]);
+    const me = leaderboard.find((p) => {
+      const playerId = readField(p, "player_id", "playerId", "id");
+      const playerName = readField(p, "player_name", "playerName", "name");
+      return playerId === config.playerId || playerName === profile?.name;
+    });
+
+    const leaderboardProfit = readField(me, "profit", "total_profit");
+    if (typeof leaderboardProfit === "number") {
+      return leaderboardProfit;
+    }
+
+    if (typeof profile?.credits === "number" && typeof initialCreditsRef.current === "number") {
+      return profile.credits - initialCreditsRef.current;
+    }
+
+    return 0;
+  }, [leaderboard, config.playerId, profile?.name, profile?.credits]);
 
   const planetInventories = useMemo(() => {
     return systems.flatMap((system) =>
@@ -555,7 +576,11 @@ function App() {
     lastDataUpdateRef.current = Date.now();
 
     // Track rank changes
-    const playerRank = leaderboardData?.findIndex((p) => p.name === config.playerId) + 1;
+    const playerRank = (leaderboardData?.findIndex((p) => {
+      const playerId = readField(p, "player_id", "playerId", "id");
+      const playerName = readField(p, "player_name", "playerName", "name");
+      return playerId === config.playerId || playerName === profile?.name;
+    }) ?? -1) + 1;
     if (playerRank > 0) {
       if (myRank !== playerRank) {
         setPrevRank(myRank);
@@ -580,6 +605,9 @@ function App() {
 
     // Track credit changes
     const newCredits = profileData?.credits;
+    if (typeof newCredits === "number" && initialCreditsRef.current === null) {
+      initialCreditsRef.current = newCredits;
+    }
     if (typeof newCredits === "number" && prevCreditsRef.current !== null && newCredits !== prevCreditsRef.current) {
       const diff = newCredits - prevCreditsRef.current;
       setCreditDelta(diff);
@@ -673,9 +701,15 @@ function App() {
 
           <h2>Profile</h2>
           <div className="profile-card">
+            {myRank && (
+              <div className="profile-rank">
+                <strong>#{myRank}</strong>
+              </div>
+            )}
             <img src="/images/npc.png" alt="npc" />
-            <div>
+            <div className="profile-meta">
               <p>{profile?.name || "Unknown Pilot"}</p>
+              <p>ID: {profile?.id || config.playerId || "--"}</p>
               <p className={creditDelta !== null ? (creditDelta >= 0 ? "credit-up" : "credit-down") : ""}>
                 Credits: {formatNumber(profile?.credits)}
                 {creditDelta !== null && (
@@ -712,7 +746,7 @@ function App() {
           <h2>Data Status</h2>
           <div className="checks">
             <span className={`badge ${dataFreshness < 10 ? "on" : dataFreshness < 30 ? "warning" : "off"}`}>
-              Fresh: {dataFreshness}s
+              Last update: {dataFreshness}s ago
             </span>
             <span className={`badge ${orders.length > 0 ? "on" : ""}`}>
               Orders: {orders.length}
@@ -722,21 +756,6 @@ function App() {
             </span>
           </div>
 
-          {myRank && (
-            <h2>Your Rank</h2>
-          )}
-          {myRank && (
-            <div className="rank-display">
-              <div className={`rank-badge ${prevRank && prevRank > myRank ? "rank-up" : prevRank && prevRank < myRank ? "rank-down" : ""}`}>
-                <strong>#{myRank}</strong>
-                {prevRank && prevRank !== myRank && (
-                  <span className="rank-change">
-                    {prevRank > myRank ? "↑" : "↓"} {Math.abs(prevRank - myRank)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </aside>
 
         <section className="center-column">
@@ -790,14 +809,18 @@ function App() {
           <section className="panel feed-panel">
             <div className="panel-title">Trade Feed</div>
             <ul className="feed">
-              {recentTrades.slice(0, 20).map((trade) => (
-                <li key={getTradeKey(trade)} className="feed-item">
-                  <span className="feed-time">{formatTradeTime(trade)}</span>
-                  <span className="feed-text">
-                    {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
-                  </span>
-                </li>
-              ))}
+              {recentTrades.slice(0, 20).map((trade) => {
+                const origin = getTradeOriginTag(trade, config.playerId);
+                return (
+                  <li key={getTradeKey(trade)} className="feed-item">
+                    <span className="feed-time">{formatTradeTime(trade)}</span>
+                    <span className="feed-text">
+                      {readField(trade, "good_name", "goodName")} x{readField(trade, "quantity", "qty")} @ {readField(trade, "price", "unit_price")} | {readField(trade, "seller_id", "sellerId")} to {readField(trade, "buyer_id", "buyerId")}
+                    </span>
+                    <span className={`trade-origin-tag ${origin.isMine ? "mine" : "other"}`}>{origin.label}</span>
+                  </li>
+                );
+              })}
               {recentTrades.length === 0 && <li>No trade events yet</li>}
             </ul>
           </section>
@@ -1079,6 +1102,23 @@ function getTradeKey(trade) {
     readField(trade, "id", "trade_id", "tradeId")
       ?? `${readField(trade, "good_name", "goodName")}-${readField(trade, "buyer_id", "buyerId")}-${trade.receivedAtMs}`
   );
+}
+
+function getTradeOriginTag(trade, myPlayerId) {
+  const sellerId = readField(trade, "seller_id", "sellerId");
+  const buyerId = readField(trade, "buyer_id", "buyerId");
+  const isMine = sellerId === myPlayerId || buyerId === myPlayerId;
+
+  if (isMine) {
+    return { label: "bot-client", isMine: true };
+  }
+
+  const otherId = sellerId || buyerId;
+  if (otherId) {
+    return { label: `other:${otherId}`, isMine: false };
+  }
+
+  return { label: "other", isMine: false };
 }
 
 function hash(input) {
